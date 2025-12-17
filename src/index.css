@@ -14,7 +14,7 @@
   :root {
     /* Background & Surfaces */
     --background: 209 40% 96%;
-    --foreground: 222 47% 11%;
+    --foreground: 210 40% 96.0784%;
 
     --card: 210 40% 98%;
     --card-foreground: 222 47% 11%;
@@ -34,7 +34,7 @@
     --muted-foreground: 222 47% 11%;
 
     --accent: 210 40% 98%;
-    --accent-foreground: 210 40% 98.0392%;
+    --accent-foreground: 215 19% 34%;
 
     /* Status Colors */
     --success: 160 84% 39%;
