@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { CreditCard, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CreditCard, Plus, Copy } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -22,43 +21,187 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-
-interface Plano {
-  id: string;
-  nome: string;
-  descricao: string;
-  produtoId: string;
-  produtoNome: string;
-  tipoCobranca: "USUARIO" | "RECURSO" | "VOLUME" | "FIXO";
-  valor: number;
-  limiteUsuarios: number | null;
-  trial: boolean;
-  diasTrial: number;
-  ativo: boolean;
-}
-
-const mockPlanos: Plano[] = [
-  { id: "1", nome: "Starter", descricao: "Ideal para pequenas empresas", produtoId: "1", produtoNome: "ERP Cloud", tipoCobranca: "USUARIO", valor: 49.90, limiteUsuarios: 5, trial: true, diasTrial: 14, ativo: true },
-  { id: "2", nome: "Professional", descricao: "Para empresas em crescimento", produtoId: "1", produtoNome: "ERP Cloud", tipoCobranca: "USUARIO", valor: 99.90, limiteUsuarios: 20, trial: true, diasTrial: 14, ativo: true },
-  { id: "3", nome: "Enterprise", descricao: "Recursos ilimitados para grandes empresas", produtoId: "1", produtoNome: "ERP Cloud", tipoCobranca: "FIXO", valor: 499.90, limiteUsuarios: null, trial: false, diasTrial: 0, ativo: true },
-  { id: "4", nome: "Basic", descricao: "Acesso básico à API", produtoId: "2", produtoNome: "API Gateway", tipoCobranca: "VOLUME", valor: 0.01, limiteUsuarios: null, trial: true, diasTrial: 30, ativo: true },
-  { id: "5", nome: "Pro", descricao: "Alto volume de requisições", produtoId: "2", produtoNome: "API Gateway", tipoCobranca: "VOLUME", valor: 0.005, limiteUsuarios: null, trial: false, diasTrial: 0, ativo: true },
-  { id: "6", nome: "PDV Único", descricao: "Licença para um caixa", produtoId: "3", produtoNome: "PDV Desktop", tipoCobranca: "FIXO", valor: 149.90, limiteUsuarios: 3, trial: true, diasTrial: 7, ativo: true },
-];
-
-const tipoCobrancaLabels: Record<string, string> = {
-  USUARIO: "Por usuário",
-  RECURSO: "Por recurso",
-  VOLUME: "Por volume",
-  FIXO: "Valor fixo",
-};
+import planoService from "@/services/plano.service";
+import produtoService from "@/services/produto.service";
+import {
+  Plano,
+  CreatePlanoDTO,
+  UpdatePlanoDTO,
+  TipoCobranca,
+} from "@/types/plano.types";
+import { Produto } from "@/types/produto.types";
 
 export default function Planos() {
-  const [planos, setPlanos] = useState<Plano[]>(mockPlanos);
+  const [planos, setPlanos] = useState<Plano[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null);
   const { toast } = useToast();
+
+  // Local state for form fields
+  const [formData, setFormData] = useState<Partial<Plano>>({
+    tipoCobranca: "FIXO",
+    trial: false,
+    diasTrial: 0,
+    ativo: true,
+    recursos: [],
+  });
+
+  // Helper state for comma-separated resources input
+  const [recursosInput, setRecursosInput] = useState("");
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [planosRes, produtosRes] = await Promise.all([
+        planoService.getAll({ size: 100 }),
+        produtoService.getAll({ size: 100 }),
+      ]);
+      setPlanos(planosRes.content);
+      setProdutos(produtosRes.content);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar planos ou produtos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleOpenModal = (plano?: Plano) => {
+    if (plano) {
+      setPlanoEditando(plano);
+      setFormData({
+        nome: plano.nome,
+        descricao: plano.descricao,
+        produtoId: plano.produtoId,
+        tipoCobranca: plano.tipoCobranca,
+        valor: plano.valor,
+        limiteUsuarios: plano.limiteUsuarios,
+        trial: plano.trial,
+        diasTrial: plano.diasTrial,
+        ativo: plano.ativo,
+        recursos: plano.recursos,
+      });
+      setRecursosInput(plano.recursos ? plano.recursos.join(", ") : "");
+    } else {
+      setPlanoEditando(null);
+      setFormData({
+        tipoCobranca: "FIXO",
+        trial: false,
+        diasTrial: 0,
+        ativo: true,
+        recursos: [],
+      });
+      setRecursosInput("");
+    }
+    setModalAberto(true);
+  };
+
+  const handleSalvar = async () => {
+    try {
+      if (
+        !formData.nome ||
+        !formData.produtoId ||
+        formData.valor === undefined
+      ) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha nome, produto e valor.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Process resources from string to array
+      const recursosArray = recursosInput
+        .split(",")
+        .map((r) => r.trim())
+        .filter((r) => r.length > 0);
+
+      const payload = {
+        ...formData,
+        recursos: recursosArray,
+      };
+
+      if (planoEditando) {
+        await planoService.update(planoEditando.id, payload as UpdatePlanoDTO);
+        toast({
+          title: "Sucesso",
+          description: "Plano atualizado com sucesso.",
+        });
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { ativo, ...createData } = payload;
+        await planoService.create(createData as CreatePlanoDTO);
+        toast({ title: "Sucesso", description: "Plano criado com sucesso." });
+      }
+
+      setModalAberto(false);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao salvar plano:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o plano.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (plano: Plano) => {
+    if (!confirm(`Tem certeza que deseja excluir ${plano.nome}?`)) return;
+
+    try {
+      await planoService.delete(plano.id);
+      toast({ title: "Sucesso", description: "Plano excluído com sucesso." });
+      loadData();
+    } catch (error) {
+      console.error("Erro ao excluir plano:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o plano.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDuplicar = async (plano: Plano) => {
+    try {
+      const novoPlano: CreatePlanoDTO = {
+        nome: `${plano.nome} (Cópia)`,
+        descricao: plano.descricao,
+        produtoId: plano.produtoId,
+        tipoCobranca: plano.tipoCobranca,
+        valor: plano.valor,
+        limiteUsuarios: plano.limiteUsuarios,
+        trial: plano.trial,
+        diasTrial: plano.diasTrial,
+        recursos: plano.recursos,
+      };
+
+      await planoService.create(novoPlano);
+      toast({ title: "Sucesso", description: "Plano duplicado com sucesso." });
+      loadData();
+    } catch (error) {
+      console.error("Erro ao duplicar plano:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível duplicar o plano.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const columns: Column<Plano>[] = [
     {
@@ -67,63 +210,42 @@ export default function Planos() {
       cell: (plano) => (
         <div>
           <p className="font-medium">{plano.nome}</p>
-          <p className="text-xs text-muted-foreground line-clamp-1">{plano.descricao}</p>
+          <p className="text-xs text-muted-foreground">
+            {plano.produtoNome || "Produto desconhecido"}
+          </p>
         </div>
-      ),
-    },
-    {
-      key: "produto",
-      header: "Produto",
-      cell: (plano) => (
-        <span className="text-sm">{plano.produtoNome}</span>
-      ),
-    },
-    {
-      key: "tipoCobranca",
-      header: "Cobrança",
-      cell: (plano) => (
-        <span className="text-sm">{tipoCobrancaLabels[plano.tipoCobranca]}</span>
       ),
     },
     {
       key: "valor",
       header: "Valor",
       cell: (plano) => (
-        <span className="font-medium">
-          {plano.tipoCobranca === "VOLUME"
-            ? `R$ ${plano.valor.toFixed(3)}/req`
-            : `R$ ${plano.valor.toFixed(2)}/mês`}
-        </span>
+        <div>
+          <p className="font-medium">
+            {new Intl.NumberFormat("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            }).format(plano.valor)}
+          </p>
+          <p className="text-xs text-muted-foreground">{plano.tipoCobranca}</p>
+        </div>
       ),
     },
     {
-      key: "limites",
-      header: "Limites",
+      key: "limiteUsuarios",
+      header: "Usuários",
+      cell: (plano) => (
+        <span className="text-sm">
+          {plano.limiteUsuarios
+            ? `${plano.limiteUsuarios} usuários`
+            : "Ilimitado"}
+        </span>
+      ),
+      header: "Criado em",
       cell: (plano) => (
         <span className="text-sm text-muted-foreground">
-          {plano.limiteUsuarios ? `${plano.limiteUsuarios} usuários` : "Ilimitado"}
+          {new Date(plano.criadoEm).toLocaleDateString("pt-BR")}
         </span>
-      ),
-    },
-    {
-      key: "trial",
-      header: "Trial",
-      cell: (plano) => (
-        plano.trial ? (
-          <StatusBadge status={`${plano.diasTrial} dias`} variant="info" />
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        )
-      ),
-    },
-    {
-      key: "ativo",
-      header: "Status",
-      cell: (plano) => (
-        <StatusBadge
-          status={plano.ativo ? "Ativo" : "Inativo"}
-          variant={plano.ativo ? "success" : "muted"}
-        />
       ),
     },
   ];
@@ -131,54 +253,29 @@ export default function Planos() {
   const actions: Action<Plano>[] = [
     {
       label: "Editar",
-      onClick: (plano) => {
-        setPlanoEditando(plano);
-        setModalAberto(true);
-      },
+      onClick: (plano) => handleOpenModal(plano),
     },
     {
       label: "Duplicar",
-      onClick: (plano) => {
-        toast({
-          title: "Plano duplicado",
-          description: `Cópia de ${plano.nome} criada.`,
-        });
-      },
+      onClick: handleDuplicar,
+      icon: Copy,
     },
     {
       label: "Excluir",
-      onClick: (plano) => {
-        setPlanos(planos.filter((p) => p.id !== plano.id));
-        toast({
-          title: "Plano excluído",
-          description: `${plano.nome} foi removido com sucesso.`,
-        });
-      },
+      onClick: handleDelete,
       variant: "destructive",
     },
   ];
-
-  const handleSalvar = () => {
-    setModalAberto(false);
-    setPlanoEditando(null);
-    toast({
-      title: planoEditando ? "Plano atualizado" : "Plano criado",
-      description: "Operação realizada com sucesso.",
-    });
-  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Planos"
-        description="Configure os planos de assinatura"
+        description="Gerencie os planos de assinatura"
         icon={CreditCard}
         action={{
           label: "Novo Plano",
-          onClick: () => {
-            setPlanoEditando(null);
-            setModalAberto(true);
-          },
+          onClick: () => handleOpenModal(),
           icon: Plus,
         }}
       />
@@ -194,86 +291,196 @@ export default function Planos() {
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{planoEditando ? "Editar Plano" : "Novo Plano"}</DialogTitle>
+            <DialogTitle>
+              {planoEditando ? "Editar Plano" : "Novo Plano"}
+            </DialogTitle>
             <DialogDescription>
-              {planoEditando ? "Atualize as informações do plano" : "Configure um novo plano de assinatura"}
+              {planoEditando
+                ? "Atualize as informações do plano"
+                : "Preencha os dados para cadastrar um novo plano"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="produto">Produto</Label>
+              <Select
+                value={formData.produtoId}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, produtoId: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o produto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {produtos.map((produto) => (
+                    <SelectItem key={produto.id} value={produto.id}>
+                      {produto.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="nome">Nome</Label>
-                <Input id="nome" defaultValue={planoEditando?.nome} placeholder="Nome do plano" />
+                <Label htmlFor="nome">Nome do Plano</Label>
+                <Input
+                  id="nome"
+                  value={formData.nome || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, nome: e.target.value })
+                  }
+                  placeholder="Ex: Basic, Pro, Enterprise"
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="produto">Produto</Label>
-                <Select defaultValue={planoEditando?.produtoId || "1"}>
+                <Label htmlFor="tipoCobranca">Tipo de Cobrança</Label>
+                <Select
+                  value={formData.tipoCobranca}
+                  onValueChange={(value: TipoCobranca) =>
+                    setFormData({ ...formData, tipoCobranca: value })
+                  }
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Produto" />
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">ERP Cloud</SelectItem>
-                    <SelectItem value="2">API Gateway</SelectItem>
-                    <SelectItem value="3">PDV Desktop</SelectItem>
+                    <SelectItem value="FIXO">Valor Fixo</SelectItem>
+                    <SelectItem value="USUARIO">Por Usuário</SelectItem>
+                    <SelectItem value="RECURSO">Por Recurso</SelectItem>
+                    <SelectItem value="VOLUME">Por Volume</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="valor">Valor Mensal (R$)</Label>
+                <Input
+                  id="valor"
+                  type="number"
+                  step="0.01"
+                  value={formData.valor || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      valor: parseFloat(e.target.value),
+                    })
+                  }
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="limiteUsuarios">Limite de Usuários</Label>
+                <Input
+                  id="limiteUsuarios"
+                  type="number"
+                  value={formData.limiteUsuarios || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      limiteUsuarios: e.target.value
+                        ? parseInt(e.target.value)
+                        : null,
+                    })
+                  }
+                  placeholder="Deixe vazio para ilimitado"
+                />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="descricao">Descrição</Label>
-              <Textarea id="descricao" defaultValue={planoEditando?.descricao} placeholder="Descrição do plano" rows={2} />
+              <Textarea
+                id="descricao"
+                value={formData.descricao || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, descricao: e.target.value })
+                }
+                placeholder="Descrição detalhada do plano"
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="recursos">Recursos (separados por vírgula)</Label>
+              <Textarea
+                id="recursos"
+                value={recursosInput}
+                onChange={(e) => setRecursosInput(e.target.value)}
+                placeholder="Ex: Suporte 24/7, Backup diário, API ilimitada"
+              />
+            </div>
+
+            <div className="flex items-center justify-between space-x-2">
+              <Label htmlFor="trial" className="flex flex-col space-y-1">
+                <span>Período de Teste (Trial)</span>
+                <span className="font-normal text-xs text-muted-foreground">
+                  Habilitar período gratuito para novos clientes
+                </span>
+              </Label>
+              <Switch
+                id="trial"
+                checked={formData.trial}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, trial: checked })
+                }
+              />
+            </div>
+
+            {formData.trial && (
               <div className="space-y-2">
-                <Label htmlFor="tipoCobranca">Tipo de Cobrança</Label>
-                <Select defaultValue={planoEditando?.tipoCobranca || "FIXO"}>
+                <Label htmlFor="diasTrial">Dias de Trial</Label>
+                <Input
+                  id="diasTrial"
+                  type="number"
+                  value={formData.diasTrial || 0}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      diasTrial: parseInt(e.target.value),
+                    })
+                  }
+                  placeholder="Ex: 14"
+                />
+              </div>
+            )}
+
+            {planoEditando && (
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formData.ativo ? "true" : "false"}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, ativo: value === "true" })
+                  }
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Tipo" />
+                    <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="USUARIO">Por usuário</SelectItem>
-                    <SelectItem value="RECURSO">Por recurso</SelectItem>
-                    <SelectItem value="VOLUME">Por volume</SelectItem>
-                    <SelectItem value="FIXO">Valor fixo</SelectItem>
+                    <SelectItem value="true">Ativo</SelectItem>
+                    <SelectItem value="false">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="valor">Valor (R$)</Label>
-                <Input id="valor" type="number" step="0.01" defaultValue={planoEditando?.valor} placeholder="0.00" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="limiteUsuarios">Limite de Usuários</Label>
-              <Input id="limiteUsuarios" type="number" defaultValue={planoEditando?.limiteUsuarios || ""} placeholder="Deixe vazio para ilimitado" />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border p-4">
-              <div>
-                <Label htmlFor="trial">Período Trial</Label>
-                <p className="text-sm text-muted-foreground">Permitir avaliação gratuita</p>
-              </div>
-              <Switch id="trial" defaultChecked={planoEditando?.trial} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="diasTrial">Dias de Trial</Label>
-              <Input id="diasTrial" type="number" defaultValue={planoEditando?.diasTrial || 14} placeholder="14" />
-            </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalAberto(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar}>
-              {planoEditando ? "Salvar" : "Cadastrar"}
+            <Button onClick={handleSalvar} disabled={isLoading}>
+              {isLoading
+                ? "Salvando..."
+                : planoEditando
+                ? "Salvar"
+                : "Cadastrar"}
             </Button>
           </div>
         </DialogContent>

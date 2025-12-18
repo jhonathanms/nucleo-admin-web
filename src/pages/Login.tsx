@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Package, Eye, EyeOff } from "lucide-react";
+import authService from "@/services/auth.service";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,14 +13,30 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Force logout when visiting login page to clear history/session
+  useEffect(() => {
+    const clearSession = async () => {
+      if (authService.isAuthenticated()) {
+        await authService.logout();
+      }
+    };
+    clearSession();
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simular login
-    setTimeout(() => {
+
+    try {
+      await authService.login({ email, password });
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      console.error("Login failed:", error);
+      // TODO: Show error message to user (toast or alert)
+      alert("Falha no login. Verifique suas credenciais.");
+    } finally {
       setIsLoading(false);
-      navigate("/dashboard");
-    }, 1000);
+    }
   };
 
   return (
@@ -28,10 +45,10 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center rounded-xl bg-primary p-3 mb-4">
-              <Package className="h-8 w-8 text-primary-foreground" />
+            <div className="inline-flex items-center justify-center mb-6">
+              <img src="/logo.png" alt="Nucleo Admin" className="h-24 w-24" />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">SaaS Admin</h1>
+            <h1 className="text-2xl font-bold text-foreground">Núcleo admin</h1>
             <p className="text-muted-foreground mt-2">
               Entre com suas credenciais para acessar o painel
             </p>
@@ -68,7 +85,11 @@ export default function Login() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -101,27 +122,41 @@ export default function Login() {
       <div className="hidden lg:flex flex-1 bg-secondary items-center justify-center p-8">
         <div className="max-w-md text-center space-y-6">
           <h2 className="text-3xl font-bold text-secondary-foreground">
-            Gerencie suas aplicações SaaS
+            O núcleo da administração dos seus sistemas.
           </h2>
           <p className="text-secondary-foreground/80">
-            Painel centralizado para controle de clientes, licenças, produtos e financeiro de múltiplas aplicações.
+            Centralize e gerencie todos os seus sistemas em um único lugar.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-4">
             <div className="bg-secondary-foreground/10 rounded-lg p-4">
-              <p className="text-2xl font-bold text-secondary-foreground">500+</p>
-              <p className="text-sm text-secondary-foreground/70">Clientes ativos</p>
+              <p className="text-2xl font-bold text-secondary-foreground">
+                500+
+              </p>
+              <p className="text-sm text-secondary-foreground/70">
+                Clientes ativos
+              </p>
             </div>
             <div className="bg-secondary-foreground/10 rounded-lg p-4">
               <p className="text-2xl font-bold text-secondary-foreground">12</p>
-              <p className="text-sm text-secondary-foreground/70">Produtos SaaS</p>
+              <p className="text-sm text-secondary-foreground/70">
+                Produtos SaaS
+              </p>
             </div>
             <div className="bg-secondary-foreground/10 rounded-lg p-4">
-              <p className="text-2xl font-bold text-secondary-foreground">2.5k</p>
-              <p className="text-sm text-secondary-foreground/70">Licenças ativas</p>
+              <p className="text-2xl font-bold text-secondary-foreground">
+                2.5k
+              </p>
+              <p className="text-sm text-secondary-foreground/70">
+                Licenças ativas
+              </p>
             </div>
             <div className="bg-secondary-foreground/10 rounded-lg p-4">
-              <p className="text-2xl font-bold text-secondary-foreground">R$ 1.2M</p>
-              <p className="text-sm text-secondary-foreground/70">Receita mensal</p>
+              <p className="text-2xl font-bold text-secondary-foreground">
+                R$ 1.2M
+              </p>
+              <p className="text-sm text-secondary-foreground/70">
+                Receita mensal
+              </p>
             </div>
           </div>
         </div>

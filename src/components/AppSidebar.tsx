@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import authService from "@/services/auth.service";
+import { User } from "@/types/auth.types";
 import {
   LayoutDashboard,
   Users,
@@ -35,6 +37,25 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const currentUser = authService.getStoredUser();
+    if (currentUser) {
+      setUser(currentUser);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+      navigate("/login", { replace: true }); // Force redirect even if logout fails
+    }
+  };
 
   return (
     <aside
@@ -48,10 +69,10 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-primary p-1.5">
-                <Package className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-bold text-sidebar-foreground">SaaS Admin</span>
+              <img src="/logo.png" alt="Nucleo Admin" className="h-8 w-8" />
+              <span className="text-lg font-bold text-sidebar-foreground">
+                Nucleo Admin
+              </span>
             </div>
           )}
           <Button
@@ -63,7 +84,11 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               collapsed && "mx-auto"
             )}
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
           </Button>
         </div>
 
@@ -103,13 +128,18 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-sidebar-foreground truncate">Admin</p>
-                <p className="text-xs text-sidebar-muted truncate">admin@sistema.com</p>
+                <p className="text-sm font-medium text-sidebar-foreground truncate">
+                  {user?.nome || "Usuário"}
+                </p>
+                <p className="text-xs text-sidebar-muted truncate">
+                  {user?.email || "email@sistema.com"}
+                </p>
               </div>
             )}
           </div>
           <Button
             variant="ghost"
+            onClick={handleLogout}
             className={cn(
               "w-full mt-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               collapsed ? "px-2" : "justify-start"

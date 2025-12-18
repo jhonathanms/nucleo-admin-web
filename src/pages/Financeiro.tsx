@@ -1,8 +1,15 @@
-import { useState } from "react";
-import { DollarSign, Plus, FileText, Download } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  DollarSign,
+  Plus,
+  FileText,
+  Download,
+  Ban,
+  CheckCircle,
+} from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
-import { StatusBadge, getStatusVariant } from "@/components/StatusBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { StatsCard } from "@/components/StatsCard";
 import {
   Dialog,
@@ -23,46 +30,140 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-
-interface TituloFinanceiro {
-  id: string;
-  numero: string;
-  licencaId: string;
-  clienteNome: string;
-  descricao: string;
-  valor: number;
-  dataVencimento: string;
-  dataPagamento: string | null;
-  status: "PENDENTE" | "PAGO" | "EM_ATRASO" | "CANCELADO";
-}
-
-const mockTitulos: TituloFinanceiro[] = [
-  { id: "1", numero: "FAT-2024-001", licencaId: "1", clienteNome: "Tech Solutions Ltda", descricao: "ERP Cloud - Professional - Mar/2024", valor: 1998.00, dataVencimento: "2024-03-15", dataPagamento: "2024-03-14", status: "PAGO" },
-  { id: "2", numero: "FAT-2024-002", licencaId: "2", clienteNome: "João Silva", descricao: "ERP Cloud - Starter - Mar/2024", valor: 249.50, dataVencimento: "2024-03-20", dataPagamento: null, status: "PENDENTE" },
-  { id: "3", numero: "FAT-2024-003", licencaId: "3", clienteNome: "Digital Corp", descricao: "API Gateway - Pro - Mar/2024", valor: 850.00, dataVencimento: "2024-03-15", dataPagamento: "2024-03-15", status: "PAGO" },
-  { id: "4", numero: "FAT-2024-004", licencaId: "4", clienteNome: "Empresa ABC S.A.", descricao: "ERP Cloud - Enterprise - Fev/2024", valor: 4999.00, dataVencimento: "2024-02-10", dataPagamento: null, status: "EM_ATRASO" },
-  { id: "5", numero: "FAT-2024-005", licencaId: "4", clienteNome: "Empresa ABC S.A.", descricao: "ERP Cloud - Enterprise - Mar/2024", valor: 4999.00, dataVencimento: "2024-03-10", dataPagamento: null, status: "EM_ATRASO" },
-  { id: "6", numero: "FAT-2024-006", licencaId: "6", clienteNome: "StartupXYZ", descricao: "CRM Plus - Professional - Mar/2024", valor: 599.40, dataVencimento: "2024-03-01", dataPagamento: null, status: "CANCELADO" },
-  { id: "7", numero: "FAT-2024-007", licencaId: "1", clienteNome: "Tech Solutions Ltda", descricao: "ERP Cloud - Professional - Abr/2024", valor: 1998.00, dataVencimento: "2024-04-15", dataPagamento: null, status: "PENDENTE" },
-  { id: "8", numero: "FAT-2024-008", licencaId: "8", clienteNome: "Mega Systems", descricao: "PDV Desktop - PDV Único - Mar/2024", valor: 149.90, dataVencimento: "2024-03-25", dataPagamento: null, status: "PENDENTE" },
-];
+import financeiroService from "@/services/financeiro.service";
+import licencaService from "@/services/licenca.service";
+import {
+  TituloFinanceiro,
+  CreateTituloDTO,
+  StatusTitulo,
+} from "@/types/financeiro.types";
+import { Licenca } from "@/types/licenca.types";
 
 export default function Financeiro() {
-  const [titulos, setTitulos] = useState<TituloFinanceiro[]>(mockTitulos);
+  const [titulos, setTitulos] = useState<TituloFinanceiro[]>([]);
+  const [licencas, setLicencas] = useState<Licenca[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
-  const [tituloEditando, setTituloEditando] = useState<TituloFinanceiro | null>(null);
   const { toast } = useToast();
+
+  const [formData, setFormData] = useState<Partial<CreateTituloDTO>>({});
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [titulosRes, licencasRes] = await Promise.all([
+        financeiroService.getAll({ size: 100 }),
+        licencaService.getAll({ size: 100 }),
+      ]);
+      setTitulos(titulosRes.content);
+      setLicencas(licencasRes.content);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os dados financeiros.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // Cálculos para os cards
   const totalReceber = titulos
-    .filter(t => t.status === "PENDENTE" || t.status === "EM_ATRASO")
+    .filter((t) => t.status === "PENDENTE" || t.status === "EM_ATRASO")
     .reduce((acc, t) => acc + t.valor, 0);
   const totalRecebido = titulos
-    .filter(t => t.status === "PAGO")
+    .filter((t) => t.status === "PAGO")
     .reduce((acc, t) => acc + t.valor, 0);
   const totalAtrasado = titulos
-    .filter(t => t.status === "EM_ATRASO")
+    .filter((t) => t.status === "EM_ATRASO")
     .reduce((acc, t) => acc + t.valor, 0);
+
+  const handleSalvar = async () => {
+    try {
+      if (
+        !formData.licencaId ||
+        !formData.descricao ||
+        !formData.valor ||
+        !formData.dataVencimento
+      ) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha todos os campos.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await financeiroService.create(formData as CreateTituloDTO);
+      toast({ title: "Sucesso", description: "Título criado com sucesso." });
+      setModalAberto(false);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao criar título:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar o título.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRegistrarPagamento = async (titulo: TituloFinanceiro) => {
+    try {
+      await financeiroService.registrarPagamento(titulo.id);
+      toast({
+        title: "Sucesso",
+        description: "Pagamento registrado com sucesso.",
+      });
+      loadData();
+    } catch (error) {
+      console.error("Erro ao registrar pagamento:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível registrar o pagamento.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelar = async (titulo: TituloFinanceiro) => {
+    if (!confirm(`Tem certeza que deseja cancelar o título ${titulo.numero}?`))
+      return;
+
+    try {
+      await financeiroService.cancelar(titulo.id);
+      toast({ title: "Sucesso", description: "Título cancelado com sucesso." });
+      loadData();
+    } catch (error) {
+      console.error("Erro ao cancelar título:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível cancelar o título.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusBadgeVariant = (status: StatusTitulo) => {
+    switch (status) {
+      case "PAGO":
+        return "success";
+      case "PENDENTE":
+        return "warning";
+      case "EM_ATRASO":
+        return "destructive";
+      case "CANCELADO":
+        return "muted";
+      default:
+        return "default";
+    }
+  };
 
   const columns: Column<TituloFinanceiro>[] = [
     {
@@ -76,7 +177,7 @@ export default function Financeiro() {
       ),
     },
     {
-      key: "cliente",
+      key: "clienteNome",
       header: "Cliente",
       cell: (titulo) => (
         <span className="font-medium">{titulo.clienteNome}</span>
@@ -86,7 +187,9 @@ export default function Financeiro() {
       key: "descricao",
       header: "Descrição",
       cell: (titulo) => (
-        <span className="text-sm text-muted-foreground line-clamp-1">{titulo.descricao}</span>
+        <span className="text-sm text-muted-foreground line-clamp-1">
+          {titulo.descricao}
+        </span>
       ),
     },
     {
@@ -94,12 +197,13 @@ export default function Financeiro() {
       header: "Valor",
       cell: (titulo) => (
         <span className="font-medium">
-          R$ {titulo.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          R${" "}
+          {titulo.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
         </span>
       ),
     },
     {
-      key: "vencimento",
+      key: "dataVencimento",
       header: "Vencimento",
       cell: (titulo) => (
         <span className="text-sm">
@@ -111,7 +215,10 @@ export default function Financeiro() {
       key: "status",
       header: "Status",
       cell: (titulo) => (
-        <StatusBadge status={titulo.status} variant={getStatusVariant(titulo.status)} />
+        <StatusBadge
+          status={titulo.status}
+          variant={getStatusBadgeVariant(titulo.status)}
+        />
       ),
     },
   ];
@@ -119,55 +226,20 @@ export default function Financeiro() {
   const actions: Action<TituloFinanceiro>[] = [
     {
       label: "Registrar pagamento",
-      onClick: (titulo) => {
-        setTitulos(titulos.map(t =>
-          t.id === titulo.id
-            ? { ...t, status: "PAGO" as const, dataPagamento: new Date().toISOString().split("T")[0] }
-            : t
-        ));
-        toast({
-          title: "Pagamento registrado",
-          description: `Título ${titulo.numero} marcado como pago.`,
-        });
-      },
-    },
-    {
-      label: "Gerar boleto",
-      onClick: (titulo) => {
-        toast({
-          title: "Boleto gerado",
-          description: `Boleto do título ${titulo.numero} foi gerado.`,
-        });
-      },
+      onClick: handleRegistrarPagamento,
+      icon: CheckCircle,
     },
     {
       label: "Cancelar",
-      onClick: (titulo) => {
-        setTitulos(titulos.map(t =>
-          t.id === titulo.id ? { ...t, status: "CANCELADO" as const } : t
-        ));
-        toast({
-          title: "Título cancelado",
-          description: `Título ${titulo.numero} foi cancelado.`,
-          variant: "destructive",
-        });
-      },
+      onClick: handleCancelar,
       variant: "destructive",
+      icon: Ban,
     },
   ];
 
-  const handleSalvar = () => {
-    setModalAberto(false);
-    setTituloEditando(null);
-    toast({
-      title: "Título criado",
-      description: "Operação realizada com sucesso.",
-    });
-  };
-
   const titulosFiltrados = (status?: string) => {
     if (!status || status === "todos") return titulos;
-    return titulos.filter(t => t.status === status);
+    return titulos.filter((t) => t.status === status);
   };
 
   return (
@@ -179,7 +251,7 @@ export default function Financeiro() {
         action={{
           label: "Novo Título",
           onClick: () => {
-            setTituloEditando(null);
+            setFormData({});
             setModalAberto(true);
           },
           icon: Plus,
@@ -195,19 +267,25 @@ export default function Financeiro() {
       <div className="grid gap-4 md:grid-cols-3">
         <StatsCard
           title="A Receber"
-          value={`R$ ${totalReceber.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          value={`R$ ${totalReceber.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+          })}`}
           icon={DollarSign}
           description="Títulos pendentes"
         />
         <StatsCard
           title="Recebido (mês)"
-          value={`R$ ${totalRecebido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          value={`R$ ${totalRecebido.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+          })}`}
           icon={DollarSign}
           description="Pagamentos confirmados"
         />
         <StatsCard
           title="Em Atraso"
-          value={`R$ ${totalAtrasado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          value={`R$ ${totalAtrasado.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+          })}`}
           icon={DollarSign}
           description="Títulos vencidos"
         />
@@ -274,33 +352,66 @@ export default function Financeiro() {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente / Licença</Label>
-              <Select>
+              <Label htmlFor="licenca">Licença / Cliente</Label>
+              <Select
+                value={formData.licencaId}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, licencaId: value })
+                }
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder="Selecione a licença" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Tech Solutions - ERP Professional</SelectItem>
-                  <SelectItem value="2">João Silva - ERP Starter</SelectItem>
-                  <SelectItem value="3">Digital Corp - API Pro</SelectItem>
+                  {licencas.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.clienteNome} - {l.produtoNome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="descricao">Descrição</Label>
-              <Input id="descricao" placeholder="Descrição do título" />
+              <Input
+                id="descricao"
+                value={formData.descricao || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, descricao: e.target.value })
+                }
+                placeholder="Descrição do título"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="valor">Valor (R$)</Label>
-                <Input id="valor" type="number" step="0.01" placeholder="0.00" />
+                <Input
+                  id="valor"
+                  type="number"
+                  step="0.01"
+                  value={formData.valor || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      valor: parseFloat(e.target.value),
+                    })
+                  }
+                  placeholder="0.00"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="vencimento">Vencimento</Label>
-                <Input id="vencimento" type="date" />
+                <Input
+                  id="vencimento"
+                  type="date"
+                  value={formData.dataVencimento || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dataVencimento: e.target.value })
+                  }
+                />
               </div>
             </div>
           </div>
@@ -309,8 +420,8 @@ export default function Financeiro() {
             <Button variant="outline" onClick={() => setModalAberto(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar}>
-              Cadastrar
+            <Button onClick={handleSalvar} disabled={isLoading}>
+              {isLoading ? "Salvando..." : "Cadastrar"}
             </Button>
           </div>
         </DialogContent>

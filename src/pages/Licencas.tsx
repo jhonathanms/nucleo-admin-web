@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Key, Plus, Copy } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Key, Plus, RefreshCw, Ban } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
-import { StatusBadge, getStatusVariant } from "@/components/StatusBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import {
   Dialog,
   DialogContent,
@@ -21,77 +22,229 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
-interface Licenca {
-  id: string;
-  chave: string;
-  clienteId: string;
-  clienteNome: string;
-  produtoNome: string;
-  planoNome: string;
-  status: "ATIVO" | "TRIAL" | "SUSPENSO" | "CANCELADO" | "EXPIRADO";
-  dataInicio: string;
-  dataExpiracao: string;
-  limiteUsuarios: number | null;
-  usuariosAtivos: number;
-}
-
-const mockLicencas: Licenca[] = [
-  { id: "1", chave: "LIC-ERP-2024-001-XYZABC", clienteId: "1", clienteNome: "Tech Solutions Ltda", produtoNome: "ERP Cloud", planoNome: "Professional", status: "ATIVO", dataInicio: "2024-01-15", dataExpiracao: "2025-01-15", limiteUsuarios: 20, usuariosAtivos: 12 },
-  { id: "2", chave: "LIC-ERP-2024-002-DEFGHI", clienteId: "2", clienteNome: "João Silva", produtoNome: "ERP Cloud", planoNome: "Starter", status: "ATIVO", dataInicio: "2024-02-20", dataExpiracao: "2025-02-20", limiteUsuarios: 5, usuariosAtivos: 3 },
-  { id: "3", chave: "LIC-API-2024-001-JKLMNO", clienteId: "5", clienteNome: "Digital Corp", produtoNome: "API Gateway", planoNome: "Pro", status: "ATIVO", dataInicio: "2024-02-15", dataExpiracao: "2025-02-15", limiteUsuarios: null, usuariosAtivos: 8 },
-  { id: "4", chave: "LIC-ERP-2024-003-PQRSTU", clienteId: "3", clienteNome: "Empresa ABC S.A.", produtoNome: "ERP Cloud", planoNome: "Enterprise", status: "SUSPENSO", dataInicio: "2024-01-10", dataExpiracao: "2025-01-10", limiteUsuarios: null, usuariosAtivos: 45 },
-  { id: "5", chave: "LIC-PDV-2024-001-VWXYZA", clienteId: "8", clienteNome: "Mega Systems", produtoNome: "PDV Desktop", planoNome: "PDV Único", status: "TRIAL", dataInicio: "2024-03-01", dataExpiracao: "2024-03-08", limiteUsuarios: 3, usuariosAtivos: 2 },
-  { id: "6", chave: "LIC-CRM-2024-001-BCDEFG", clienteId: "6", clienteNome: "StartupXYZ", produtoNome: "CRM Plus", planoNome: "Professional", status: "CANCELADO", dataInicio: "2023-12-01", dataExpiracao: "2024-12-01", limiteUsuarios: 10, usuariosAtivos: 0 },
-];
+import licencaService from "@/services/licenca.service";
+import clienteService from "@/services/cliente.service";
+import produtoService from "@/services/produto.service";
+import planoService from "@/services/plano.service";
+import {
+  Licenca,
+  CreateLicencaDTO,
+  UpdateLicencaDTO,
+} from "@/types/licenca.types";
+import { Cliente } from "@/types/cliente.types";
+import { Produto } from "@/types/produto.types";
+import { Plano } from "@/types/plano.types";
+import { Status } from "@/types/common.types";
 
 export default function Licencas() {
-  const [licencas, setLicencas] = useState<Licenca[]>(mockLicencas);
-  const [modalAberto, setModalAberto] = useState(false);
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const clienteIdParam = queryParams.get("clienteId");
+
+  const [licencas, setLicencas] = useState<Licenca[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [planos, setPlanos] = useState<Plano[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [renovarModalOpen, setRenovarModalOpen] = useState(false);
   const [licencaEditando, setLicencaEditando] = useState<Licenca | null>(null);
+  const [licencaRenovando, setLicencaRenovando] = useState<Licenca | null>(
+    null
+  );
+  const [mesesRenovacao, setMesesRenovacao] = useState(12);
+
   const { toast } = useToast();
 
-  const copiarChave = (chave: string) => {
-    navigator.clipboard.writeText(chave);
-    toast({
-      title: "Chave copiada",
-      description: "A chave foi copiada para a área de transferência.",
-    });
+  // Form state
+  const [formData, setFormData] = useState<
+    Partial<CreateLicencaDTO & { status: Status }>
+  >({
+    limiteUsuarios: null,
+  });
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Load dependencies first
+      const [clientesRes, produtosRes, planosRes] = await Promise.all([
+        clienteService.getAll({ size: 100 }),
+        produtoService.getAll({ size: 100 }),
+        planoService.getAll({ size: 100 }),
+      ]);
+
+      setClientes(clientesRes.content);
+      setProdutos(produtosRes.content);
+      setPlanos(planosRes.content);
+
+      // Load licenses, optionally filtered by client
+      const params: Record<string, any> = { size: 100 };
+      if (clienteIdParam) {
+        params.clienteId = clienteIdParam;
+      }
+
+      const licencasRes = await licencaService.getAll(params);
+      setLicencas(licencasRes.content);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as licenças.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [clienteIdParam]);
+
+  const handleOpenModal = (licenca?: Licenca) => {
+    if (licenca) {
+      setLicencaEditando(licenca);
+      setFormData({
+        clienteId: licenca.clienteId,
+        produtoId: licenca.produtoId,
+        planoId: licenca.planoId,
+        dataInicio: licenca.dataInicio.split("T")[0],
+        dataExpiracao: licenca.dataExpiracao.split("T")[0],
+        limiteUsuarios: licenca.limiteUsuarios,
+        status: licenca.status,
+      });
+    } else {
+      setLicencaEditando(null);
+      const hoje = new Date();
+      const anoQueVem = new Date();
+      anoQueVem.setFullYear(hoje.getFullYear() + 1);
+
+      setFormData({
+        clienteId: clienteIdParam || "",
+        dataInicio: hoje.toISOString().split("T")[0],
+        dataExpiracao: anoQueVem.toISOString().split("T")[0],
+        limiteUsuarios: null,
+      });
+    }
+    setModalOpen(true);
+  };
+
+  const handleSalvar = async () => {
+    try {
+      if (
+        !formData.clienteId ||
+        !formData.produtoId ||
+        !formData.planoId ||
+        !formData.dataInicio ||
+        !formData.dataExpiracao
+      ) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha todos os campos obrigatórios.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (licencaEditando) {
+        const updatePayload: UpdateLicencaDTO = {
+          status: formData.status,
+          dataExpiracao: new Date(formData.dataExpiracao).toISOString(),
+          limiteUsuarios: formData.limiteUsuarios,
+        };
+        await licencaService.update(licencaEditando.id, updatePayload);
+        toast({
+          title: "Sucesso",
+          description: "Licença atualizada com sucesso.",
+        });
+      } else {
+        const createPayload: CreateLicencaDTO = {
+          clienteId: formData.clienteId,
+          produtoId: formData.produtoId,
+          planoId: formData.planoId,
+          dataInicio: new Date(formData.dataInicio).toISOString(),
+          dataExpiracao: new Date(formData.dataExpiracao).toISOString(),
+          limiteUsuarios: formData.limiteUsuarios,
+        };
+        await licencaService.create(createPayload);
+        toast({ title: "Sucesso", description: "Licença criada com sucesso." });
+      }
+
+      setModalOpen(false);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao salvar licença:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar a licença.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRenovar = async () => {
+    if (!licencaRenovando) return;
+
+    try {
+      await licencaService.renovar(licencaRenovando.id, {
+        meses: mesesRenovacao,
+      });
+      toast({ title: "Sucesso", description: "Licença renovada com sucesso." });
+      setRenovarModalOpen(false);
+      setLicencaRenovando(null);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao renovar licença:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível renovar a licença.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSuspender = async (licenca: Licenca) => {
+    if (
+      !confirm(
+        `Tem certeza que deseja suspender a licença de ${licenca.clienteNome}?`
+      )
+    )
+      return;
+
+    try {
+      await licencaService.suspender(licenca.id);
+      toast({ title: "Sucesso", description: "Licença suspensa com sucesso." });
+      loadData();
+    } catch (error) {
+      console.error("Erro ao suspender licença:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível suspender a licença.",
+        variant: "destructive",
+      });
+    }
   };
 
   const columns: Column<Licenca>[] = [
     {
-      key: "chave",
-      header: "Chave",
+      key: "clienteNome",
+      header: "Cliente",
       cell: (licenca) => (
-        <div className="flex items-center gap-2">
-          <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-            {licenca.chave.substring(0, 20)}...
-          </code>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => copiarChave(licenca.chave)}
-          >
-            <Copy className="h-3 w-3" />
-          </Button>
+        <div>
+          <p className="font-medium">{licenca.clienteNome}</p>
+          <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+            {licenca.chave}
+          </p>
         </div>
       ),
     },
     {
-      key: "cliente",
-      header: "Cliente",
-      cell: (licenca) => (
-        <span className="font-medium">{licenca.clienteNome}</span>
-      ),
-    },
-    {
-      key: "produto",
-      header: "Produto / Plano",
+      key: "produtoNome",
+      header: "Produto/Plano",
       cell: (licenca) => (
         <div>
-          <p className="text-sm">{licenca.produtoNome}</p>
+          <p className="text-sm font-medium">{licenca.produtoNome}</p>
           <p className="text-xs text-muted-foreground">{licenca.planoNome}</p>
         </div>
       ),
@@ -100,11 +253,31 @@ export default function Licencas() {
       key: "status",
       header: "Status",
       cell: (licenca) => (
-        <StatusBadge status={licenca.status} variant={getStatusVariant(licenca.status)} />
+        <StatusBadge
+          status={licenca.status}
+          variant={
+            licenca.status === "ATIVO"
+              ? "success"
+              : licenca.status === "TRIAL"
+              ? "info"
+              : licenca.status === "SUSPENSO"
+              ? "warning"
+              : "muted"
+          }
+        />
       ),
     },
     {
-      key: "usuarios",
+      key: "dataExpiracao",
+      header: "Expira em",
+      cell: (licenca) => (
+        <span className="text-sm">
+          {new Date(licenca.dataExpiracao).toLocaleDateString("pt-BR")}
+        </span>
+      ),
+    },
+    {
+      key: "usuariosAtivos",
       header: "Usuários",
       cell: (licenca) => (
         <span className="text-sm">
@@ -112,71 +285,39 @@ export default function Licencas() {
         </span>
       ),
     },
-    {
-      key: "validade",
-      header: "Validade",
-      cell: (licenca) => (
-        <div>
-          <p className="text-sm">{new Date(licenca.dataExpiracao).toLocaleDateString("pt-BR")}</p>
-          <p className="text-xs text-muted-foreground">
-            {Math.ceil((new Date(licenca.dataExpiracao).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} dias restantes
-          </p>
-        </div>
-      ),
-    },
   ];
 
   const actions: Action<Licenca>[] = [
     {
       label: "Editar",
-      onClick: (licenca) => {
-        setLicencaEditando(licenca);
-        setModalAberto(true);
-      },
+      onClick: (licenca) => handleOpenModal(licenca),
     },
     {
       label: "Renovar",
       onClick: (licenca) => {
-        toast({
-          title: "Licença renovada",
-          description: `Licença de ${licenca.clienteNome} renovada por mais 1 ano.`,
-        });
+        setLicencaRenovando(licenca);
+        setMesesRenovacao(12);
+        setRenovarModalOpen(true);
       },
+      icon: RefreshCw,
     },
     {
       label: "Suspender",
-      onClick: (licenca) => {
-        toast({
-          title: "Licença suspensa",
-          description: `Licença de ${licenca.clienteNome} foi suspensa.`,
-          variant: "destructive",
-        });
-      },
+      onClick: handleSuspender,
       variant: "destructive",
+      icon: Ban,
     },
   ];
-
-  const handleSalvar = () => {
-    setModalAberto(false);
-    setLicencaEditando(null);
-    toast({
-      title: licencaEditando ? "Licença atualizada" : "Licença criada",
-      description: "Operação realizada com sucesso.",
-    });
-  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Licenças"
-        description="Gerencie as licenças dos clientes"
+        description="Gerencie as licenças de uso"
         icon={Key}
         action={{
           label: "Nova Licença",
-          onClick: () => {
-            setLicencaEditando(null);
-            setModalAberto(true);
-          },
+          onClick: () => handleOpenModal(),
           icon: Plus,
         }}
       />
@@ -189,28 +330,39 @@ export default function Licencas() {
         searchPlaceholder="Buscar por cliente..."
       />
 
-      <Dialog open={modalAberto} onOpenChange={setModalAberto}>
+      {/* Modal de Criar/Editar Licença */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{licencaEditando ? "Editar Licença" : "Nova Licença"}</DialogTitle>
+            <DialogTitle>
+              {licencaEditando ? "Editar Licença" : "Nova Licença"}
+            </DialogTitle>
             <DialogDescription>
-              {licencaEditando ? "Atualize as informações da licença" : "Configure uma nova licença para o cliente"}
+              {licencaEditando
+                ? "Atualize as informações da licença"
+                : "Preencha os dados para gerar uma nova licença"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="cliente">Cliente</Label>
-              <Select defaultValue={licencaEditando?.clienteId}>
+              <Select
+                value={formData.clienteId}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, clienteId: value })
+                }
+                disabled={!!licencaEditando}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Tech Solutions Ltda</SelectItem>
-                  <SelectItem value="2">João Silva</SelectItem>
-                  <SelectItem value="3">Empresa ABC S.A.</SelectItem>
-                  <SelectItem value="5">Digital Corp</SelectItem>
-                  <SelectItem value="8">Mega Systems</SelectItem>
+                  {clientes.map((cliente) => (
+                    <SelectItem key={cliente.id} value={cliente.id}>
+                      {cliente.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -218,29 +370,50 @@ export default function Licencas() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="produto">Produto</Label>
-                <Select>
+                <Select
+                  value={formData.produtoId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, produtoId: value })
+                  }
+                  disabled={!!licencaEditando}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Produto" />
+                    <SelectValue placeholder="Selecione o produto" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">ERP Cloud</SelectItem>
-                    <SelectItem value="2">API Gateway</SelectItem>
-                    <SelectItem value="3">PDV Desktop</SelectItem>
-                    <SelectItem value="5">CRM Plus</SelectItem>
+                    {produtos.map((produto) => (
+                      <SelectItem key={produto.id} value={produto.id}>
+                        {produto.nome}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="plano">Plano</Label>
-                <Select>
+                <Select
+                  value={formData.planoId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, planoId: value })
+                  }
+                  disabled={!!licencaEditando}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Plano" />
+                    <SelectValue placeholder="Selecione o plano" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="starter">Starter</SelectItem>
-                    <SelectItem value="professional">Professional</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                    {planos
+                      .filter(
+                        (p) =>
+                          !formData.produtoId ||
+                          p.produtoId === formData.produtoId
+                      )
+                      .map((plano) => (
+                        <SelectItem key={plano.id} value={plano.id}>
+                          {plano.nome}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -248,27 +421,66 @@ export default function Licencas() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="dataInicio">Data de Início</Label>
-                <Input id="dataInicio" type="date" defaultValue={licencaEditando?.dataInicio} />
+                <Label htmlFor="dataInicio">Data Início</Label>
+                <Input
+                  id="dataInicio"
+                  type="date"
+                  value={formData.dataInicio}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dataInicio: e.target.value })
+                  }
+                  disabled={!!licencaEditando}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dataExpiracao">Data de Expiração</Label>
-                <Input id="dataExpiracao" type="date" defaultValue={licencaEditando?.dataExpiracao} />
+                <Label htmlFor="dataExpiracao">Data Expiração</Label>
+                <Input
+                  id="dataExpiracao"
+                  type="date"
+                  value={formData.dataExpiracao}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dataExpiracao: e.target.value })
+                  }
+                />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="limiteUsuarios">Limite de Usuários</Label>
+              <Input
+                id="limiteUsuarios"
+                type="number"
+                value={formData.limiteUsuarios || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    limiteUsuarios: e.target.value
+                      ? parseInt(e.target.value)
+                      : null,
+                  })
+                }
+                placeholder="Deixe vazio para ilimitado"
+              />
             </div>
 
             {licencaEditando && (
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
-                <Select defaultValue={licencaEditando.status}>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value: Status) =>
+                    setFormData({ ...formData, status: value })
+                  }
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Status" />
+                    <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ATIVO">Ativo</SelectItem>
-                    <SelectItem value="TRIAL">Trial</SelectItem>
+                    <SelectItem value="INATIVO">Inativo</SelectItem>
                     <SelectItem value="SUSPENSO">Suspenso</SelectItem>
+                    <SelectItem value="TRIAL">Trial</SelectItem>
                     <SelectItem value="CANCELADO">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
@@ -277,12 +489,47 @@ export default function Licencas() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setModalAberto(false)}>
+            <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar}>
-              {licencaEditando ? "Salvar" : "Cadastrar"}
+            <Button onClick={handleSalvar} disabled={isLoading}>
+              {isLoading ? "Salvando..." : "Salvar"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Renovação */}
+      <Dialog open={renovarModalOpen} onOpenChange={setRenovarModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Renovar Licença</DialogTitle>
+            <DialogDescription>
+              Estender a validade da licença
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="meses">Meses adicionais</Label>
+              <Input
+                id="meses"
+                type="number"
+                min="1"
+                value={mesesRenovacao}
+                onChange={(e) => setMesesRenovacao(parseInt(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRenovarModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleRenovar}>Confirmar Renovação</Button>
           </div>
         </DialogContent>
       </Dialog>

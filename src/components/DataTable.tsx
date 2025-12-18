@@ -15,7 +15,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronLeft, ChevronRight, MoreHorizontal, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Column<T> {
@@ -29,6 +34,7 @@ export interface Action<T> {
   label: string;
   onClick: (item: T) => void;
   variant?: "default" | "destructive";
+  icon?: React.ElementType;
 }
 
 interface DataTableProps<T> {
@@ -88,7 +94,10 @@ export function DataTable<T extends { id: string | number }>({
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
               {columns.map((column) => (
-                <TableHead key={column.key} className={cn("font-semibold", column.className)}>
+                <TableHead
+                  key={column.key}
+                  className={cn("font-semibold", column.className)}
+                >
                   {column.header}
                 </TableHead>
               ))}
@@ -119,7 +128,11 @@ export function DataTable<T extends { id: string | number }>({
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -128,8 +141,15 @@ export function DataTable<T extends { id: string | number }>({
                             <DropdownMenuItem
                               key={index}
                               onClick={() => action.onClick(item)}
-                              className={action.variant === "destructive" ? "text-destructive" : ""}
+                              className={
+                                action.variant === "destructive"
+                                  ? "text-destructive"
+                                  : ""
+                              }
                             >
+                              {action.icon && (
+                                <action.icon className="mr-2 h-4 w-4" />
+                              )}
                               {action.label}
                             </DropdownMenuItem>
                           ))}

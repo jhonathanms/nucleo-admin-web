@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Building2, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge, getStatusVariant } from "@/components/StatusBadge";
@@ -21,34 +22,126 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
-interface Cliente {
-  id: string;
-  nome: string;
-  documento: string;
-  tipo: "PF" | "PJ";
-  email: string;
-  telefone: string;
-  status: "ATIVO" | "INADIMPLENTE" | "SUSPENSO" | "CANCELADO";
-  criadoEm: string;
-}
-
-const mockClientes: Cliente[] = [
-  { id: "1", nome: "Tech Solutions Ltda", documento: "12.345.678/0001-90", tipo: "PJ", email: "contato@techsolutions.com", telefone: "(11) 99999-0001", status: "ATIVO", criadoEm: "2024-01-15" },
-  { id: "2", nome: "João Silva", documento: "123.456.789-00", tipo: "PF", email: "joao@email.com", telefone: "(11) 99999-0002", status: "ATIVO", criadoEm: "2024-02-20" },
-  { id: "3", nome: "Empresa ABC S.A.", documento: "98.765.432/0001-10", tipo: "PJ", email: "financeiro@abc.com.br", telefone: "(11) 99999-0003", status: "INADIMPLENTE", criadoEm: "2024-01-10" },
-  { id: "4", nome: "Maria Santos", documento: "987.654.321-00", tipo: "PF", email: "maria@email.com", telefone: "(11) 99999-0004", status: "SUSPENSO", criadoEm: "2024-03-01" },
-  { id: "5", nome: "Digital Corp", documento: "11.222.333/0001-44", tipo: "PJ", email: "admin@digitalcorp.com", telefone: "(11) 99999-0005", status: "ATIVO", criadoEm: "2024-02-15" },
-  { id: "6", nome: "StartupXYZ", documento: "55.666.777/0001-88", tipo: "PJ", email: "hello@startupxyz.io", telefone: "(11) 99999-0006", status: "CANCELADO", criadoEm: "2023-12-01" },
-  { id: "7", nome: "Pedro Oliveira", documento: "111.222.333-44", tipo: "PF", email: "pedro@email.com", telefone: "(11) 99999-0007", status: "ATIVO", criadoEm: "2024-03-10" },
-  { id: "8", nome: "Mega Systems", documento: "22.333.444/0001-55", tipo: "PJ", email: "suporte@megasystems.com.br", telefone: "(11) 99999-0008", status: "ATIVO", criadoEm: "2024-01-25" },
-];
+import clienteService from "@/services/cliente.service";
+import {
+  Cliente,
+  CreateClienteDTO,
+  UpdateClienteDTO,
+} from "@/types/cliente.types";
+import { Status } from "@/types/common.types";
 
 export default function Clientes() {
-  const [clientes, setClientes] = useState<Cliente[]>(mockClientes);
+  const navigate = useNavigate();
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const { toast } = useToast();
+
+  // Form states - using Partial<Cliente> to cover all fields including status
+  const [formData, setFormData] = useState<Partial<Cliente>>({
+    tipo: "PJ",
+    status: "ATIVO",
+  });
+
+  const loadClientes = async () => {
+    setIsLoading(true);
+    try {
+      const response = await clienteService.getAll({ size: 100 });
+      setClientes(response.content);
+    } catch (error) {
+      console.error("Erro ao carregar clientes:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a lista de clientes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadClientes();
+  }, []);
+
+  const handleOpenModal = (cliente?: Cliente) => {
+    if (cliente) {
+      setClienteEditando(cliente);
+      setFormData({
+        nome: cliente.nome,
+        documento: cliente.documento,
+        tipo: cliente.tipo,
+        email: cliente.email,
+        telefone: cliente.telefone,
+        status: cliente.status,
+      });
+    } else {
+      setClienteEditando(null);
+      setFormData({
+        tipo: "PJ",
+        status: "ATIVO",
+      });
+    }
+    setModalAberto(true);
+  };
+
+  const handleSalvar = async () => {
+    try {
+      if (!formData.nome || !formData.documento || !formData.email) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha nome, documento e email.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (clienteEditando) {
+        await clienteService.update(
+          clienteEditando.id,
+          formData as UpdateClienteDTO
+        );
+        toast({
+          title: "Sucesso",
+          description: "Cliente atualizado com sucesso.",
+        });
+      } else {
+        // Remove status from creation as it's not in CreateClienteDTO
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { status, ...createData } = formData;
+        await clienteService.create(createData as CreateClienteDTO);
+        toast({ title: "Sucesso", description: "Cliente criado com sucesso." });
+      }
+
+      setModalAberto(false);
+      loadClientes();
+    } catch (error) {
+      console.error("Erro ao salvar cliente:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o cliente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (cliente: Cliente) => {
+    if (!confirm(`Tem certeza que deseja excluir ${cliente.nome}?`)) return;
+
+    try {
+      await clienteService.delete(cliente.id);
+      toast({ title: "Sucesso", description: "Cliente excluído com sucesso." });
+      loadClientes();
+    } catch (error) {
+      console.error("Erro ao excluir cliente:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o cliente.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const columns: Column<Cliente>[] = [
     {
@@ -65,7 +158,9 @@ export default function Clientes() {
       key: "tipo",
       header: "Tipo",
       cell: (cliente) => (
-        <span className="text-sm">{cliente.tipo === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</span>
+        <span className="text-sm">
+          {cliente.tipo === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}
+        </span>
       ),
     },
     {
@@ -82,7 +177,10 @@ export default function Clientes() {
       key: "status",
       header: "Status",
       cell: (cliente) => (
-        <StatusBadge status={cliente.status} variant={getStatusVariant(cliente.status)} />
+        <StatusBadge
+          status={cliente.status}
+          variant={getStatusVariant(cliente.status)}
+        />
       ),
     },
     {
@@ -99,41 +197,24 @@ export default function Clientes() {
   const actions: Action<Cliente>[] = [
     {
       label: "Editar",
-      onClick: (cliente) => {
-        setClienteEditando(cliente);
-        setModalAberto(true);
-      },
+      onClick: (cliente) => handleOpenModal(cliente),
     },
     {
       label: "Ver licenças",
       onClick: (cliente) => {
+        navigate(`/licencas?clienteId=${cliente.id}`);
         toast({
-          title: "Licenças",
+          title: "Filtro aplicado",
           description: `Visualizando licenças de ${cliente.nome}`,
         });
       },
     },
     {
       label: "Excluir",
-      onClick: (cliente) => {
-        setClientes(clientes.filter((c) => c.id !== cliente.id));
-        toast({
-          title: "Cliente excluído",
-          description: `${cliente.nome} foi removido com sucesso.`,
-        });
-      },
+      onClick: handleDelete,
       variant: "destructive",
     },
   ];
-
-  const handleSalvar = () => {
-    setModalAberto(false);
-    setClienteEditando(null);
-    toast({
-      title: clienteEditando ? "Cliente atualizado" : "Cliente criado",
-      description: "Operação realizada com sucesso.",
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -143,10 +224,7 @@ export default function Clientes() {
         icon={Building2}
         action={{
           label: "Novo Cliente",
-          onClick: () => {
-            setClienteEditando(null);
-            setModalAberto(true);
-          },
+          onClick: () => handleOpenModal(),
           icon: Plus,
         }}
       />
@@ -162,16 +240,25 @@ export default function Clientes() {
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{clienteEditando ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
+            <DialogTitle>
+              {clienteEditando ? "Editar Cliente" : "Novo Cliente"}
+            </DialogTitle>
             <DialogDescription>
-              {clienteEditando ? "Atualize as informações do cliente" : "Preencha os dados para cadastrar um novo cliente"}
+              {clienteEditando
+                ? "Atualize as informações do cliente"
+                : "Preencha os dados para cadastrar um novo cliente"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="tipo">Tipo</Label>
-              <Select defaultValue={clienteEditando?.tipo || "PJ"}>
+              <Select
+                value={formData.tipo}
+                onValueChange={(value: "PF" | "PJ") =>
+                  setFormData({ ...formData, tipo: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
@@ -184,28 +271,62 @@ export default function Clientes() {
 
             <div className="space-y-2">
               <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" defaultValue={clienteEditando?.nome} placeholder="Nome completo ou razão social" />
+              <Input
+                id="nome"
+                value={formData.nome || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, nome: e.target.value })
+                }
+                placeholder="Nome completo ou razão social"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="documento">CPF/CNPJ</Label>
-              <Input id="documento" defaultValue={clienteEditando?.documento} placeholder="000.000.000-00" />
+              <Input
+                id="documento"
+                value={formData.documento || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, documento: e.target.value })
+                }
+                placeholder="000.000.000-00"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" defaultValue={clienteEditando?.email} placeholder="email@exemplo.com" />
+              <Input
+                id="email"
+                type="email"
+                value={formData.email || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                placeholder="email@exemplo.com"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="telefone">Telefone</Label>
-              <Input id="telefone" defaultValue={clienteEditando?.telefone} placeholder="(00) 00000-0000" />
+              <Input
+                id="telefone"
+                value={formData.telefone || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, telefone: e.target.value })
+                }
+                placeholder="(00) 00000-0000"
+              />
             </div>
 
             {clienteEditando && (
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
-                <Select defaultValue={clienteEditando.status}>
+                <Select
+                  value={formData.status as string}
+                  onValueChange={(value: Status) =>
+                    setFormData({ ...formData, status: value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
@@ -224,8 +345,12 @@ export default function Clientes() {
             <Button variant="outline" onClick={() => setModalAberto(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar}>
-              {clienteEditando ? "Salvar" : "Cadastrar"}
+            <Button onClick={handleSalvar} disabled={isLoading}>
+              {isLoading
+                ? "Salvando..."
+                : clienteEditando
+                ? "Salvar"
+                : "Cadastrar"}
             </Button>
           </div>
         </DialogContent>

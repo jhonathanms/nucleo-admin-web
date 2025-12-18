@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ClipboardList, Filter, Download } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column } from "@/components/DataTable";
@@ -18,32 +18,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
-
-interface LogAuditoria {
-  id: string;
-  timestamp: string;
-  usuario: string;
-  usuarioEmail: string;
-  acao: string;
-  entidade: string;
-  entidadeId: string;
-  detalhes: string;
-  ip: string;
-  nivel: "INFO" | "WARNING" | "ERROR";
-}
-
-const mockLogs: LogAuditoria[] = [
-  { id: "1", timestamp: "2024-03-15T10:30:45", usuario: "Admin Sistema", usuarioEmail: "admin@sistema.com", acao: "CREATE", entidade: "LICENCA", entidadeId: "LIC-001", detalhes: "Nova licença criada para Tech Solutions", ip: "192.168.1.100", nivel: "INFO" },
-  { id: "2", timestamp: "2024-03-15T10:25:30", usuario: "Admin Sistema", usuarioEmail: "admin@sistema.com", acao: "UPDATE", entidade: "CLIENTE", entidadeId: "CLI-001", detalhes: "Status alterado de ATIVO para SUSPENSO", ip: "192.168.1.100", nivel: "WARNING" },
-  { id: "3", timestamp: "2024-03-15T10:20:15", usuario: "Suporte Técnico", usuarioEmail: "suporte@sistema.com", acao: "UPDATE", entidade: "USUARIO", entidadeId: "USR-003", detalhes: "Senha resetada para carlos@techsolutions.com", ip: "192.168.1.101", nivel: "WARNING" },
-  { id: "4", timestamp: "2024-03-15T10:15:00", usuario: "Carlos Silva", usuarioEmail: "carlos@techsolutions.com", acao: "LOGIN", entidade: "AUTH", entidadeId: "-", detalhes: "Login bem-sucedido", ip: "200.150.100.50", nivel: "INFO" },
-  { id: "5", timestamp: "2024-03-15T10:10:30", usuario: "Sistema", usuarioEmail: "sistema@interno", acao: "UPDATE", entidade: "TITULO", entidadeId: "FAT-004", detalhes: "Status alterado para EM_ATRASO automaticamente", ip: "127.0.0.1", nivel: "WARNING" },
-  { id: "6", timestamp: "2024-03-15T09:55:20", usuario: "Admin Sistema", usuarioEmail: "admin@sistema.com", acao: "DELETE", entidade: "PLANO", entidadeId: "PLN-007", detalhes: "Plano 'Legacy Basic' removido", ip: "192.168.1.100", nivel: "WARNING" },
-  { id: "7", timestamp: "2024-03-15T09:45:10", usuario: "Fernanda Lima", usuarioEmail: "fernanda@digitalcorp.com", acao: "LOGIN_FAILED", entidade: "AUTH", entidadeId: "-", detalhes: "Tentativa de login com senha incorreta (3x)", ip: "200.150.100.75", nivel: "ERROR" },
-  { id: "8", timestamp: "2024-03-15T09:30:00", usuario: "Sistema", usuarioEmail: "sistema@interno", acao: "CREATE", entidade: "TITULO", entidadeId: "FAT-008", detalhes: "Fatura mensal gerada automaticamente", ip: "127.0.0.1", nivel: "INFO" },
-  { id: "9", timestamp: "2024-03-15T09:15:45", usuario: "Admin Sistema", usuarioEmail: "admin@sistema.com", acao: "UPDATE", entidade: "LICENCA", entidadeId: "LIC-004", detalhes: "Licença suspensa por inadimplência", ip: "192.168.1.100", nivel: "WARNING" },
-  { id: "10", timestamp: "2024-03-15T09:00:00", usuario: "Sistema", usuarioEmail: "sistema@interno", acao: "BACKUP", entidade: "SISTEMA", entidadeId: "-", detalhes: "Backup automático concluído com sucesso", ip: "127.0.0.1", nivel: "INFO" },
-];
+import { useToast } from "@/hooks/use-toast";
+import auditoriaService from "@/services/auditoria.service";
+import { LogAuditoria, NivelAuditoria } from "@/types/auditoria.types";
 
 const acaoLabels: Record<string, string> = {
   CREATE: "Criação",
@@ -73,17 +50,42 @@ const nivelVariants: Record<string, "info" | "warning" | "destructive"> = {
 };
 
 export default function Auditoria() {
-  const [logs] = useState<LogAuditoria[]>(mockLogs);
+  const [logs, setLogs] = useState<LogAuditoria[]>([]);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todos");
   const [filtroNivel, setFiltroNivel] = useState<string>("todos");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
+  const { toast } = useToast();
 
-  const logsFiltrados = logs.filter(log => {
-    if (filtroEntidade !== "todos" && log.entidade !== filtroEntidade) return false;
-    if (filtroNivel !== "todos" && log.nivel !== filtroNivel) return false;
-    return true;
-  });
+  const loadLogs = async () => {
+    setIsLoading(true);
+    try {
+      const params: any = { size: 20 }; // Default page size
+      if (filtroEntidade !== "todos") params.entidade = filtroEntidade;
+      if (filtroNivel !== "todos") params.nivel = filtroNivel;
+      if (dataInicio) params.dataInicio = dataInicio;
+      if (dataFim) params.dataFim = dataFim;
+
+      const response = await auditoriaService.getAll(params);
+      setLogs(response.content);
+      setTotalLogs(response.totalElements);
+    } catch (error) {
+      console.error("Erro ao carregar logs:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os logs de auditoria.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLogs();
+  }, [filtroEntidade, filtroNivel, dataInicio, dataFim]);
 
   const columns: Column<LogAuditoria>[] = [
     {
@@ -91,7 +93,7 @@ export default function Auditoria() {
       header: "Data/Hora",
       cell: (log) => (
         <span className="text-sm font-mono">
-          {new Date(log.timestamp).toLocaleString("pt-BR", {
+          {new Date(log.dataHora).toLocaleString("pt-BR", {
             dateStyle: "short",
             timeStyle: "medium",
           })}
@@ -114,7 +116,7 @@ export default function Auditoria() {
       cell: (log) => (
         <StatusBadge
           status={acaoLabels[log.acao] || log.acao}
-          variant={nivelVariants[log.nivel]}
+          variant={nivelVariants[log.nivel] || "default"}
         />
       ),
     },
@@ -123,8 +125,12 @@ export default function Auditoria() {
       header: "Entidade",
       cell: (log) => (
         <div>
-          <p className="text-sm">{entidadeLabels[log.entidade] || log.entidade}</p>
-          <p className="text-xs text-muted-foreground font-mono">{log.entidadeId}</p>
+          <p className="text-sm">
+            {entidadeLabels[log.entidade] || log.entidade}
+          </p>
+          <p className="text-xs text-muted-foreground font-mono">
+            {log.entidadeId}
+          </p>
         </div>
       ),
     },
@@ -141,7 +147,9 @@ export default function Auditoria() {
       key: "ip",
       header: "IP",
       cell: (log) => (
-        <span className="text-sm font-mono text-muted-foreground">{log.ip}</span>
+        <span className="text-sm font-mono text-muted-foreground">
+          {log.ip}
+        </span>
       ),
     },
   ];
@@ -164,7 +172,10 @@ export default function Auditoria() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Entidade</Label>
-                <Select value={filtroEntidade} onValueChange={setFiltroEntidade}>
+                <Select
+                  value={filtroEntidade}
+                  onValueChange={setFiltroEntidade}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
@@ -237,34 +248,20 @@ export default function Auditoria() {
         </Button>
       </PageHeader>
 
-      {/* Summary cards */}
+      {/* Summary cards - Simplified for now as we don't have aggregated stats endpoint */}
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total de Logs</p>
-          <p className="text-2xl font-bold">{logs.length}</p>
+          <p className="text-2xl font-bold">{totalLogs}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Informativo</p>
-          <p className="text-2xl font-bold text-info">
-            {logs.filter(l => l.nivel === "INFO").length}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Alertas</p>
-          <p className="text-2xl font-bold text-warning">
-            {logs.filter(l => l.nivel === "WARNING").length}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Erros</p>
-          <p className="text-2xl font-bold text-destructive">
-            {logs.filter(l => l.nivel === "ERROR").length}
-          </p>
-        </div>
+        {/* 
+          Placeholder for other stats if backend provides aggregation later.
+          For now, we only show total logs found by current filter.
+        */}
       </div>
 
       <DataTable
-        data={logsFiltrados}
+        data={logs}
         columns={columns}
         searchKey="detalhes"
         searchPlaceholder="Buscar nos detalhes..."

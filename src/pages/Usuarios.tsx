@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UserCircle, Plus, Shield } from "lucide-react";
+import usuarioService from "@/services/usuario.service";
+import clienteService from "@/services/cliente.service";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -9,6 +11,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,41 +25,194 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-interface Usuario {
-  id: string;
-  nome: string;
-  email: string;
-  perfil: "SUPER_ADMIN" | "SUPORTE" | "MASTER_CLIENT" | "USER_CLIENT";
-  clienteId: string | null;
-  clienteNome: string | null;
-  ativo: boolean;
-  ultimoAcesso: string | null;
-  criadoEm: string;
-}
+import {
+  Usuario,
+  CreateUsuarioDTO,
+  UpdateUsuarioDTO,
+} from "@/types/usuario.types";
+import { UserRole } from "@/types/auth.types";
+import { Cliente } from "@/types/cliente.types";
 
-const mockUsuarios: Usuario[] = [
-  { id: "1", nome: "Admin Sistema", email: "admin@sistema.com", perfil: "SUPER_ADMIN", clienteId: null, clienteNome: null, ativo: true, ultimoAcesso: "2024-03-15T10:30:00", criadoEm: "2023-01-01" },
-  { id: "2", nome: "Suporte Técnico", email: "suporte@sistema.com", perfil: "SUPORTE", clienteId: null, clienteNome: null, ativo: true, ultimoAcesso: "2024-03-15T09:15:00", criadoEm: "2023-02-15" },
-  { id: "3", nome: "Carlos Silva", email: "carlos@techsolutions.com", perfil: "MASTER_CLIENT", clienteId: "1", clienteNome: "Tech Solutions Ltda", ativo: true, ultimoAcesso: "2024-03-15T08:00:00", criadoEm: "2024-01-15" },
-  { id: "4", nome: "Ana Souza", email: "ana@techsolutions.com", perfil: "USER_CLIENT", clienteId: "1", clienteNome: "Tech Solutions Ltda", ativo: true, ultimoAcesso: "2024-03-14T16:45:00", criadoEm: "2024-01-20" },
-  { id: "5", nome: "Roberto Mendes", email: "roberto@abc.com.br", perfil: "MASTER_CLIENT", clienteId: "3", clienteNome: "Empresa ABC S.A.", ativo: false, ultimoAcesso: "2024-02-28T14:00:00", criadoEm: "2024-01-10" },
-  { id: "6", nome: "Fernanda Lima", email: "fernanda@digitalcorp.com", perfil: "MASTER_CLIENT", clienteId: "5", clienteNome: "Digital Corp", ativo: true, ultimoAcesso: "2024-03-15T11:00:00", criadoEm: "2024-02-15" },
-  { id: "7", nome: "Pedro Santos", email: "pedro@digitalcorp.com", perfil: "USER_CLIENT", clienteId: "5", clienteNome: "Digital Corp", ativo: true, ultimoAcesso: "2024-03-15T07:30:00", criadoEm: "2024-02-20" },
-  { id: "8", nome: "Mariana Costa", email: "mariana@digitalcorp.com", perfil: "USER_CLIENT", clienteId: "5", clienteNome: "Digital Corp", ativo: true, ultimoAcesso: null, criadoEm: "2024-03-10" },
-];
+const perfilLabels: Record<
+  UserRole,
+  { label: string; variant: "default" | "destructive" | "warning" | "success" }
+> = {
+  ADMIN: { label: "Admin", variant: "destructive" },
+  GERENTE: { label: "Gerente", variant: "warning" },
+  OPERADOR: { label: "Operador", variant: "default" },
+  CLIENTE: { label: "Cliente", variant: "success" },
+};
 
-const perfilLabels: Record<string, { label: string; variant: "default" | "destructive" | "warning" | "success" }> = {
-  SUPER_ADMIN: { label: "Super Admin", variant: "destructive" },
-  SUPORTE: { label: "Suporte", variant: "warning" },
-  MASTER_CLIENT: { label: "Master", variant: "success" },
-  USER_CLIENT: { label: "Usuário", variant: "default" },
+const INITIAL_FORM_DATA = {
+  nome: "",
+  email: "",
+  role: "CLIENTE" as UserRole,
+  clienteId: "none",
+  senha: "",
 };
 
 export default function Usuarios() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>(mockUsuarios);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+
+  // Reset Password State
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetPasswordData, setResetPasswordData] = useState({
+    id: "",
+    email: "",
+    novaSenha: "",
+  });
+
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [usuariosRes, clientesRes] = await Promise.all([
+        usuarioService.getAll(),
+        clienteService.getAll({ size: 100 }),
+      ]);
+      setUsuarios(usuariosRes.content);
+      setClientes(clientesRes.content);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os dados.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const openNewUserModal = () => {
+    setUsuarioEditando(null);
+    setFormData(INITIAL_FORM_DATA);
+    setModalAberto(true);
+  };
+
+  const openEditUserModal = (usuario: Usuario) => {
+    setUsuarioEditando(usuario);
+    // Try to find if user is linked to a client (this info might be missing in current Usuario type,
+    // but we can try to infer or leave as 'none' if not available)
+    // For now, we leave as 'none' or we would need to fetch user details if the list doesn't have it.
+    setFormData({
+      nome: usuario.nome,
+      email: usuario.email,
+      role: usuario.role,
+      clienteId: "none", // TODO: If backend returns clienteId, map it here
+      senha: "", // Password not needed for edit
+    });
+    setModalAberto(true);
+  };
+
+  const handleSalvar = async () => {
+    try {
+      const payload: any = {
+        nome: formData.nome,
+        email: formData.email,
+        role: formData.role,
+      };
+
+      if (formData.role === "CLIENTE" && formData.clienteId !== "none") {
+        payload.clienteId = formData.clienteId;
+      }
+
+      if (usuarioEditando) {
+        // Update
+        await usuarioService.update(
+          usuarioEditando.id,
+          payload as UpdateUsuarioDTO
+        );
+        toast({ title: "Usuário atualizado com sucesso" });
+      } else {
+        // Create
+        payload.senha = formData.senha;
+        await usuarioService.create(payload as CreateUsuarioDTO);
+        toast({ title: "Usuário criado com sucesso" });
+      }
+      setModalAberto(false);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao salvar usuário:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o usuário. Verifique os dados.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStatusChange = async (usuario: Usuario) => {
+    try {
+      await usuarioService.update(usuario.id, { ativo: !usuario.ativo });
+      toast({
+        title: usuario.ativo ? "Usuário desativado" : "Usuário ativado",
+        description: `${usuario.nome} foi ${
+          usuario.ativo ? "desativado" : "ativado"
+        }.`,
+      });
+      loadData();
+    } catch (error) {
+      console.error("Erro ao alterar status:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar o status do usuário.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openResetPasswordModal = (usuario: Usuario) => {
+    setResetPasswordData({
+      id: usuario.id,
+      email: usuario.email,
+      novaSenha: "",
+    });
+    setResetModalOpen(true);
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resetPasswordData.novaSenha) {
+      toast({
+        title: "Erro",
+        description: "A nova senha é obrigatória.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await usuarioService.resetPassword(resetPasswordData.id, {
+        novaSenha: resetPasswordData.novaSenha,
+      });
+      toast({
+        title: "Senha resetada",
+        description: `A senha de ${resetPasswordData.email} foi alterada com sucesso.`,
+      });
+      setResetModalOpen(false);
+    } catch (error) {
+      console.error("Erro ao resetar senha:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível resetar a senha.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const columns: Column<Usuario>[] = [
     {
@@ -66,7 +222,11 @@ export default function Usuarios() {
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
             <span className="text-sm font-medium text-primary">
-              {usuario.nome.split(" ").map(n => n[0]).join("").substring(0, 2)}
+              {usuario.nome
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .substring(0, 2)}
             </span>
           </div>
           <div>
@@ -77,23 +237,14 @@ export default function Usuarios() {
       ),
     },
     {
-      key: "perfil",
+      key: "role",
       header: "Perfil",
       cell: (usuario) => (
         <StatusBadge
-          status={perfilLabels[usuario.perfil].label}
-          variant={perfilLabels[usuario.perfil].variant}
+          status={perfilLabels[usuario.role].label}
+          variant={perfilLabels[usuario.role].variant}
           icon={Shield}
         />
-      ),
-    },
-    {
-      key: "cliente",
-      header: "Cliente",
-      cell: (usuario) => (
-        <span className="text-sm">
-          {usuario.clienteNome || <span className="text-muted-foreground">—</span>}
-        </span>
       ),
     },
     {
@@ -112,7 +263,10 @@ export default function Usuarios() {
       cell: (usuario) => (
         <span className="text-sm text-muted-foreground">
           {usuario.ultimoAcesso
-            ? new Date(usuario.ultimoAcesso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+            ? new Date(usuario.ultimoAcesso).toLocaleString("pt-BR", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
             : "Nunca acessou"}
         </span>
       ),
@@ -122,42 +276,17 @@ export default function Usuarios() {
   const actions: Action<Usuario>[] = [
     {
       label: "Editar",
-      onClick: (usuario) => {
-        setUsuarioEditando(usuario);
-        setModalAberto(true);
-      },
+      onClick: openEditUserModal,
     },
     {
       label: "Resetar senha",
-      onClick: (usuario) => {
-        toast({
-          title: "Senha resetada",
-          description: `Uma nova senha foi enviada para ${usuario.email}`,
-        });
-      },
+      onClick: openResetPasswordModal,
     },
     {
       label: "Alterar status",
-      onClick: (usuario) => {
-        setUsuarios(usuarios.map(u => 
-          u.id === usuario.id ? { ...u, ativo: !u.ativo } : u
-        ));
-        toast({
-          title: usuario.ativo ? "Usuário desativado" : "Usuário ativado",
-          description: `${usuario.nome} foi ${usuario.ativo ? "desativado" : "ativado"}.`,
-        });
-      },
+      onClick: handleStatusChange,
     },
   ];
-
-  const handleSalvar = () => {
-    setModalAberto(false);
-    setUsuarioEditando(null);
-    toast({
-      title: usuarioEditando ? "Usuário atualizado" : "Usuário criado",
-      description: "Operação realizada com sucesso.",
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -167,10 +296,7 @@ export default function Usuarios() {
         icon={UserCircle}
         action={{
           label: "Novo Usuário",
-          onClick: () => {
-            setUsuarioEditando(null);
-            setModalAberto(true);
-          },
+          onClick: openNewUserModal,
           icon: Plus,
         }}
       />
@@ -183,76 +309,148 @@ export default function Usuarios() {
         searchPlaceholder="Buscar por nome..."
       />
 
+      {/* Modal de Criar/Editar Usuário */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{usuarioEditando ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+            <DialogTitle>
+              {usuarioEditando ? "Editar Usuário" : "Novo Usuário"}
+            </DialogTitle>
             <DialogDescription>
-              {usuarioEditando ? "Atualize as informações do usuário" : "Cadastre um novo usuário no sistema"}
+              {usuarioEditando
+                ? "Atualize as informações do usuário"
+                : "Cadastre um novo usuário no sistema"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" defaultValue={usuarioEditando?.nome} placeholder="Nome completo" />
+              <Input
+                id="nome"
+                value={formData.nome}
+                onChange={(e) => handleInputChange("nome", e.target.value)}
+                placeholder="Nome completo"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" defaultValue={usuarioEditando?.email} placeholder="email@exemplo.com" />
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleInputChange("email", e.target.value)}
+                placeholder="email@exemplo.com"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="perfil">Perfil</Label>
-              <Select defaultValue={usuarioEditando?.perfil || "USER_CLIENT"}>
+              <Select
+                value={formData.role}
+                onValueChange={(value) => handleInputChange("role", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o perfil" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                  <SelectItem value="SUPORTE">Suporte</SelectItem>
-                  <SelectItem value="MASTER_CLIENT">Master Client</SelectItem>
-                  <SelectItem value="USER_CLIENT">User Client</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="GERENTE">Gerente</SelectItem>
+                  <SelectItem value="OPERADOR">Operador</SelectItem>
+                  <SelectItem value="CLIENTE">Cliente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente (para perfis de cliente)</Label>
-              <Select defaultValue={usuarioEditando?.clienteId || undefined}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum (usuário interno)</SelectItem>
-                  <SelectItem value="1">Tech Solutions Ltda</SelectItem>
-                  <SelectItem value="3">Empresa ABC S.A.</SelectItem>
-                  <SelectItem value="5">Digital Corp</SelectItem>
-                  <SelectItem value="8">Mega Systems</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {formData.role === "CLIENTE" && (
+              <div className="space-y-2">
+                <Label htmlFor="cliente">Cliente (Empresa)</Label>
+                <Select
+                  value={formData.clienteId}
+                  onValueChange={(value) =>
+                    handleInputChange("clienteId", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      Nenhum (usuário interno)
+                    </SelectItem>
+                    {clientes.map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {!usuarioEditando && (
               <div className="space-y-2">
-                <Label htmlFor="senha">Senha Provisória</Label>
-                <Input id="senha" type="password" placeholder="Senha inicial" />
-                <p className="text-xs text-muted-foreground">
-                  O usuário receberá um e-mail para definir uma nova senha.
-                </p>
+                <Label htmlFor="senha">Senha Inicial</Label>
+                <Input
+                  id="senha"
+                  type="password"
+                  value={formData.senha}
+                  onChange={(e) => handleInputChange("senha", e.target.value)}
+                  placeholder="Senha para o primeiro acesso"
+                />
               </div>
             )}
           </div>
 
-          <div className="flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setModalAberto(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar}>
+            <Button onClick={handleSalvar} disabled={isLoading}>
               {usuarioEditando ? "Salvar" : "Cadastrar"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Reset de Senha */}
+      <Dialog open={resetModalOpen} onOpenChange={setResetModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resetar Senha</DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha para o usuário{" "}
+              <strong>{resetPasswordData.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="novaSenha">Nova Senha</Label>
+              <Input
+                id="novaSenha"
+                type="password"
+                value={resetPasswordData.novaSenha}
+                onChange={(e) =>
+                  setResetPasswordData((prev) => ({
+                    ...prev,
+                    novaSenha: e.target.value,
+                  }))
+                }
+                placeholder="Digite a nova senha"
+              />
+            </div>
           </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmResetPassword}>
+              Confirmar Alteração
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

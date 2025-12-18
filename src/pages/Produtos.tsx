@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Package, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -22,38 +23,123 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
-interface Produto {
-  id: string;
-  nome: string;
-  descricao: string;
-  tipo: "WEB" | "API" | "DESKTOP" | "MOBILE";
-  versao: string;
-  ativo: boolean;
-  criadoEm: string;
-}
-
-const mockProdutos: Produto[] = [
-  { id: "1", nome: "ERP Cloud", descricao: "Sistema de gestão empresarial completo", tipo: "WEB", versao: "3.2.1", ativo: true, criadoEm: "2023-06-15" },
-  { id: "2", nome: "API Gateway", descricao: "Gateway de integração com parceiros", tipo: "API", versao: "2.0.0", ativo: true, criadoEm: "2023-08-20" },
-  { id: "3", nome: "PDV Desktop", descricao: "Ponto de venda para lojas físicas", tipo: "DESKTOP", versao: "4.1.0", ativo: true, criadoEm: "2023-03-10" },
-  { id: "4", nome: "App Vendas", descricao: "Aplicativo mobile para força de vendas", tipo: "MOBILE", versao: "1.5.2", ativo: true, criadoEm: "2024-01-05" },
-  { id: "5", nome: "CRM Plus", descricao: "Gestão de relacionamento com clientes", tipo: "WEB", versao: "2.3.0", ativo: true, criadoEm: "2023-09-12" },
-  { id: "6", nome: "BI Analytics", descricao: "Dashboard de análise de dados", tipo: "WEB", versao: "1.0.0", ativo: false, criadoEm: "2024-02-01" },
-];
-
-const tipoLabels: Record<string, string> = {
-  WEB: "Aplicação Web",
-  API: "API/Integração",
-  DESKTOP: "Desktop",
-  MOBILE: "Mobile",
-};
+import produtoService from "@/services/produto.service";
+import {
+  Produto,
+  CreateProdutoDTO,
+  UpdateProdutoDTO,
+  ProdutoTipo,
+} from "@/types/produto.types";
 
 export default function Produtos() {
-  const [produtos, setProdutos] = useState<Produto[]>(mockProdutos);
+  const navigate = useNavigate();
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [produtoEditando, setProdutoEditando] = useState<Produto | null>(null);
   const { toast } = useToast();
+
+  const [formData, setFormData] = useState<Partial<Produto>>({
+    tipo: "WEB",
+    ativo: true,
+  });
+
+  const loadProdutos = async () => {
+    setIsLoading(true);
+    try {
+      const response = await produtoService.getAll({ size: 100 });
+      setProdutos(response.content);
+    } catch (error) {
+      console.error("Erro ao carregar produtos:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a lista de produtos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProdutos();
+  }, []);
+
+  const handleOpenModal = (produto?: Produto) => {
+    if (produto) {
+      setProdutoEditando(produto);
+      setFormData({
+        nome: produto.nome,
+        descricao: produto.descricao,
+        tipo: produto.tipo,
+        versao: produto.versao,
+        ativo: produto.ativo,
+      });
+    } else {
+      setProdutoEditando(null);
+      setFormData({
+        tipo: "WEB",
+        ativo: true,
+      });
+    }
+    setModalAberto(true);
+  };
+
+  const handleSalvar = async () => {
+    try {
+      if (!formData.nome || !formData.versao) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha nome e versão.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (produtoEditando) {
+        await produtoService.update(
+          produtoEditando.id,
+          formData as UpdateProdutoDTO
+        );
+        toast({
+          title: "Sucesso",
+          description: "Produto atualizado com sucesso.",
+        });
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { ativo, ...createData } = formData;
+        await produtoService.create(createData as CreateProdutoDTO);
+        toast({ title: "Sucesso", description: "Produto criado com sucesso." });
+      }
+
+      setModalAberto(false);
+      loadProdutos();
+    } catch (error) {
+      console.error("Erro ao salvar produto:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o produto.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (produto: Produto) => {
+    if (!confirm(`Tem certeza que deseja excluir ${produto.nome}?`)) return;
+
+    try {
+      await produtoService.delete(produto.id);
+      toast({ title: "Sucesso", description: "Produto excluído com sucesso." });
+      loadProdutos();
+    } catch (error) {
+      console.error("Erro ao excluir produto:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o produto.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const columns: Column<Produto>[] = [
     {
@@ -62,37 +148,18 @@ export default function Produtos() {
       cell: (produto) => (
         <div>
           <p className="font-medium">{produto.nome}</p>
-          <p className="text-xs text-muted-foreground line-clamp-1">{produto.descricao}</p>
+          <p className="text-xs text-muted-foreground">{produto.descricao}</p>
         </div>
       ),
     },
     {
       key: "tipo",
       header: "Tipo",
-      cell: (produto) => (
-        <StatusBadge status={tipoLabels[produto.tipo]} variant="info" />
-      ),
+      cell: (produto) => <span className="text-sm">{produto.tipo}</span>,
     },
     {
       key: "versao",
       header: "Versão",
-      cell: (produto) => (
-        <span className="font-mono text-sm">{produto.versao}</span>
-      ),
-    },
-    {
-      key: "ativo",
-      header: "Status",
-      cell: (produto) => (
-        <StatusBadge
-          status={produto.ativo ? "Ativo" : "Inativo"}
-          variant={produto.ativo ? "success" : "muted"}
-        />
-      ),
-    },
-    {
-      key: "criadoEm",
-      header: "Criado em",
       cell: (produto) => (
         <span className="text-sm text-muted-foreground">
           {new Date(produto.criadoEm).toLocaleDateString("pt-BR")}
@@ -104,54 +171,34 @@ export default function Produtos() {
   const actions: Action<Produto>[] = [
     {
       label: "Editar",
-      onClick: (produto) => {
-        setProdutoEditando(produto);
-        setModalAberto(true);
-      },
+      onClick: (produto) => handleOpenModal(produto),
     },
     {
       label: "Ver planos",
       onClick: (produto) => {
+        navigate(`/planos?produtoId=${produto.id}`);
         toast({
-          title: "Planos",
+          title: "Filtro aplicado",
           description: `Visualizando planos de ${produto.nome}`,
         });
       },
     },
     {
       label: "Excluir",
-      onClick: (produto) => {
-        setProdutos(produtos.filter((p) => p.id !== produto.id));
-        toast({
-          title: "Produto excluído",
-          description: `${produto.nome} foi removido com sucesso.`,
-        });
-      },
+      onClick: handleDelete,
       variant: "destructive",
     },
   ];
-
-  const handleSalvar = () => {
-    setModalAberto(false);
-    setProdutoEditando(null);
-    toast({
-      title: produtoEditando ? "Produto atualizado" : "Produto criado",
-      description: "Operação realizada com sucesso.",
-    });
-  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Produtos"
-        description="Gerencie os produtos SaaS disponíveis"
+        description="Gerencie o catálogo de produtos"
         icon={Package}
         action={{
           label: "Novo Produto",
-          onClick: () => {
-            setProdutoEditando(null);
-            setModalAberto(true);
-          },
+          onClick: () => handleOpenModal(),
           icon: Plus,
         }}
       />
@@ -167,51 +214,84 @@ export default function Produtos() {
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{produtoEditando ? "Editar Produto" : "Novo Produto"}</DialogTitle>
+            <DialogTitle>
+              {produtoEditando ? "Editar Produto" : "Novo Produto"}
+            </DialogTitle>
             <DialogDescription>
-              {produtoEditando ? "Atualize as informações do produto" : "Preencha os dados para cadastrar um novo produto"}
+              {produtoEditando
+                ? "Atualize as informações do produto"
+                : "Preencha os dados para cadastrar um novo produto"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="tipo">Tipo</Label>
+              <Select
+                value={formData.tipo}
+                onValueChange={(value: ProdutoTipo) =>
+                  setFormData({ ...formData, tipo: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="WEB">Web Application</SelectItem>
+                  <SelectItem value="API">API Service</SelectItem>
+                  <SelectItem value="DESKTOP">Desktop App</SelectItem>
+                  <SelectItem value="MOBILE">Mobile App</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" defaultValue={produtoEditando?.nome} placeholder="Nome do produto" />
+              <Input
+                id="nome"
+                value={formData.nome || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, nome: e.target.value })
+                }
+                placeholder="Nome do produto"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="versao">Versão Atual</Label>
+              <Input
+                id="versao"
+                value={formData.versao || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, versao: e.target.value })
+                }
+                placeholder="v1.0.0"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="descricao">Descrição</Label>
-              <Textarea id="descricao" defaultValue={produtoEditando?.descricao} placeholder="Descrição do produto" rows={3} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tipo">Tipo</Label>
-                <Select defaultValue={produtoEditando?.tipo || "WEB"}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WEB">Aplicação Web</SelectItem>
-                    <SelectItem value="API">API/Integração</SelectItem>
-                    <SelectItem value="DESKTOP">Desktop</SelectItem>
-                    <SelectItem value="MOBILE">Mobile</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="versao">Versão</Label>
-                <Input id="versao" defaultValue={produtoEditando?.versao} placeholder="1.0.0" />
-              </div>
+              <Textarea
+                id="descricao"
+                value={formData.descricao || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, descricao: e.target.value })
+                }
+                placeholder="Breve descrição do produto"
+              />
             </div>
 
             {produtoEditando && (
               <div className="space-y-2">
-                <Label htmlFor="ativo">Status</Label>
-                <Select defaultValue={produtoEditando.ativo ? "true" : "false"}>
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formData.ativo ? "true" : "false"}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, ativo: value === "true" })
+                  }
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Status" />
+                    <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">Ativo</SelectItem>
@@ -226,8 +306,12 @@ export default function Produtos() {
             <Button variant="outline" onClick={() => setModalAberto(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar}>
-              {produtoEditando ? "Salvar" : "Cadastrar"}
+            <Button onClick={handleSalvar} disabled={isLoading}>
+              {isLoading
+                ? "Salvando..."
+                : produtoEditando
+                ? "Salvar"
+                : "Cadastrar"}
             </Button>
           </div>
         </DialogContent>
