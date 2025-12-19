@@ -10,6 +10,8 @@ export interface Usuario {
   avatar?: string;
   telefone?: string;
   ultimoAcesso?: string;
+  clienteId?: string;
+  clienteNome?: string;
   criadoEm: string;
   atualizadoEm: string;
 }

@@ -35,6 +35,7 @@ export interface Action<T> {
   onClick: (item: T) => void;
   variant?: "default" | "destructive";
   icon?: React.ElementType;
+  hide?: (item: T) => boolean;
 }
 
 interface DataTableProps<T> {
@@ -45,6 +46,7 @@ interface DataTableProps<T> {
   searchKey?: keyof T;
   emptyMessage?: string;
   className?: string;
+  itemsPerPage?: number;
 }
 
 export function DataTable<T extends { id: string | number }>({
@@ -55,10 +57,10 @@ export function DataTable<T extends { id: string | number }>({
   searchKey,
   emptyMessage = "Nenhum registro encontrado",
   className,
+  itemsPerPage = 10,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   const filteredData = searchKey
     ? data.filter((item) =>
@@ -137,22 +139,26 @@ export function DataTable<T extends { id: string | number }>({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {actions.map((action, index) => (
-                            <DropdownMenuItem
-                              key={index}
-                              onClick={() => action.onClick(item)}
-                              className={
-                                action.variant === "destructive"
-                                  ? "text-destructive"
-                                  : ""
-                              }
-                            >
-                              {action.icon && (
-                                <action.icon className="mr-2 h-4 w-4" />
-                              )}
-                              {action.label}
-                            </DropdownMenuItem>
-                          ))}
+                          {actions
+                            .filter(
+                              (action) => !action.hide || !action.hide(item)
+                            )
+                            .map((action, index) => (
+                              <DropdownMenuItem
+                                key={index}
+                                onClick={() => action.onClick(item)}
+                                className={
+                                  action.variant === "destructive"
+                                    ? "text-destructive"
+                                    : ""
+                                }
+                              >
+                                {action.icon && (
+                                  <action.icon className="mr-2 h-4 w-4" />
+                                )}
+                                {action.label}
+                              </DropdownMenuItem>
+                            ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

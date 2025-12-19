@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Package, Plus } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Package, Plus, Box, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
@@ -30,6 +30,8 @@ import {
   UpdateProdutoDTO,
   ProdutoTipo,
 } from "@/types/produto.types";
+import { useApiError } from "@/hooks/use-api-error";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 
 export default function Produtos() {
   const navigate = useNavigate();
@@ -38,13 +40,16 @@ export default function Produtos() {
   const [modalAberto, setModalAberto] = useState(false);
   const [produtoEditando, setProdutoEditando] = useState<Produto | null>(null);
   const { toast } = useToast();
+  const { apiError, handleError, clearError } = useApiError();
 
   const [formData, setFormData] = useState<Partial<Produto>>({
     tipo: "WEB",
+    modulos: [],
     ativo: true,
   });
+  const [modulosInput, setModulosInput] = useState("");
 
-  const loadProdutos = async () => {
+  const loadProdutos = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await produtoService.getAll({ size: 100 });
@@ -59,11 +64,11 @@ export default function Produtos() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     loadProdutos();
-  }, []);
+  }, [loadProdutos]);
 
   const handleOpenModal = (produto?: Produto) => {
     if (produto) {
@@ -73,41 +78,54 @@ export default function Produtos() {
         descricao: produto.descricao,
         tipo: produto.tipo,
         versao: produto.versao,
+        tagProduto: produto.tagProduto,
+        modulos: produto.modulos || [],
         ativo: produto.ativo,
       });
+      setModulosInput(produto.modulos ? produto.modulos.join(", ") : "");
     } else {
       setProdutoEditando(null);
       setFormData({
         tipo: "WEB",
+        modulos: [],
         ativo: true,
       });
+      setModulosInput("");
     }
+    clearError();
     setModalAberto(true);
   };
 
   const handleSalvar = async () => {
     try {
-      if (!formData.nome || !formData.versao) {
+      if (!formData.nome || !formData.versao || !formData.tagProduto) {
         toast({
           title: "Campos obrigatórios",
-          description: "Preencha nome e versão.",
+          description: "Preencha nome, versão e tag do produto.",
           variant: "destructive",
         });
         return;
       }
 
+      const payload = {
+        ...formData,
+        modulos: modulosInput
+          .split(",")
+          .map((m) => m.trim())
+          .filter((m) => m !== ""),
+      };
+
       if (produtoEditando) {
         await produtoService.update(
           produtoEditando.id,
-          formData as UpdateProdutoDTO
+          payload as UpdateProdutoDTO
         );
         toast({
           title: "Sucesso",
           description: "Produto atualizado com sucesso.",
         });
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { ativo, ...createData } = formData;
+        const { ativo, ...createData } = payload;
         await produtoService.create(createData as CreateProdutoDTO);
         toast({ title: "Sucesso", description: "Produto criado com sucesso." });
       }
@@ -115,12 +133,7 @@ export default function Produtos() {
       setModalAberto(false);
       loadProdutos();
     } catch (error) {
-      console.error("Erro ao salvar produto:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar o produto.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível salvar o produto.");
     }
   };
 
@@ -132,12 +145,7 @@ export default function Produtos() {
       toast({ title: "Sucesso", description: "Produto excluído com sucesso." });
       loadProdutos();
     } catch (error) {
-      console.error("Erro ao excluir produto:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o produto.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível excluir o produto.");
     }
   };
 
@@ -161,9 +169,16 @@ export default function Produtos() {
       key: "versao",
       header: "Versão",
       cell: (produto) => (
-        <span className="text-sm text-muted-foreground">
-          {new Date(produto.criadoEm).toLocaleDateString("pt-BR")}
-        </span>
+        <span className="text-sm text-muted-foreground">{produto.versao}</span>
+      ),
+    },
+    {
+      key: "tagProduto",
+      header: "Tag",
+      cell: (produto) => (
+        <code className="text-xs bg-muted px-1 rounded">
+          {produto.tagProduto}
+        </code>
       ),
     },
   ];
@@ -224,6 +239,8 @@ export default function Produtos() {
             </DialogDescription>
           </DialogHeader>
 
+          <ApiErrorAlert error={apiError} />
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="tipo">Tipo</Label>
@@ -270,6 +287,26 @@ export default function Produtos() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="tagProduto">Tag do Produto</Label>
+              <Input
+                id="tagProduto"
+                value={formData.tagProduto || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    tagProduto: e.target.value
+                      .toUpperCase()
+                      .replace(/\s+/g, "_"),
+                  })
+                }
+                placeholder="EXEMPLO_PRODUTO"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Formato: MAIÚSCULO_COM_UNDERSCORES
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="descricao">Descrição</Label>
               <Textarea
                 id="descricao"
@@ -278,7 +315,27 @@ export default function Produtos() {
                   setFormData({ ...formData, descricao: e.target.value })
                 }
                 placeholder="Breve descrição do produto"
+                className="h-20"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="modulos">
+                Módulos / Recursos (Separados por vírgula)
+              </Label>
+              <div className="relative">
+                <Box className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Textarea
+                  id="modulos"
+                  value={modulosInput}
+                  onChange={(e) => setModulosInput(e.target.value)}
+                  placeholder="Ex: Financeiro, Estoque, CRM"
+                  className="pl-9 h-20"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Estes módulos estarão disponíveis para precificação nos planos.
+              </p>
             </div>
 
             {produtoEditando && (

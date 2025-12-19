@@ -20,23 +20,46 @@ export interface LicenseStatusData {
   color: string;
 }
 
+export interface FinancialStatusData {
+  name: string;
+  value: number;
+  color: string;
+}
+
 export interface Activity {
   id: number;
   action: string;
-  cliente: string;
+  usuario: string;
+  entidade: string;
   tempo: string;
 }
 
-export interface Alert {
-  id: number;
-  tipo: "warning" | "destructive" | "info";
-  mensagem: string;
+export interface TituloDashboard {
+  id: string;
+  clienteNome: string;
+  valor: number;
+  dataVencimento: string;
+  status: string;
+}
+
+export interface LicencaDashboard {
+  id: string;
+  clienteNome: string;
+  produtoNome: string;
+  dataExpiracao: string;
+  status: string;
 }
 
 export interface DashboardData {
   stats: DashboardStats;
   revenueChart: RevenueData[];
   licenseStatusChart: LicenseStatusData[];
+  financialStatusChart: FinancialStatusData[];
   recentActivities: Activity[];
-  alerts: Alert[];
+  titulosVencendoHoje: TituloDashboard[];
+  titulosVencidos: TituloDashboard[];
+  titulosRecentes: TituloDashboard[];
+  licencasExpirandoHoje: LicencaDashboard[];
+  licencasExpiradas: LicencaDashboard[];
+  licencasRecentes: LicencaDashboard[];
 }

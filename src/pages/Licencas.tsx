@@ -1,6 +1,13 @@
-import { useState, useEffect } from "react";
-import { Key, Plus, RefreshCw, Ban } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Key,
+  Plus,
+  RefreshCw,
+  Ban,
+  AlertCircle,
+  ExternalLink,
+} from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -26,6 +33,7 @@ import licencaService from "@/services/licenca.service";
 import clienteService from "@/services/cliente.service";
 import produtoService from "@/services/produto.service";
 import planoService from "@/services/plano.service";
+import financeiroService from "@/services/financeiro.service";
 import {
   Licenca,
   CreateLicencaDTO,
@@ -35,6 +43,10 @@ import { Cliente } from "@/types/cliente.types";
 import { Produto } from "@/types/produto.types";
 import { Plano } from "@/types/plano.types";
 import { Status } from "@/types/common.types";
+import usuarioService from "@/services/usuario.service";
+import { Usuario } from "@/types/usuario.types";
+import { ApiError } from "@/types";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 
 export default function Licencas() {
   const location = useLocation();
@@ -45,7 +57,11 @@ export default function Licencas() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [planos, setPlanos] = useState<Plano[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingTitulos, setIsCheckingTitulos] = useState(false);
+  const [temTitulos, setTemTitulos] = useState(false);
+  const navigate = useNavigate();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [renovarModalOpen, setRenovarModalOpen] = useState(false);
@@ -56,6 +72,7 @@ export default function Licencas() {
   const [mesesRenovacao, setMesesRenovacao] = useState(12);
 
   const { toast } = useToast();
+  const [apiError, setApiError] = useState<ApiError | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<
@@ -64,19 +81,22 @@ export default function Licencas() {
     limiteUsuarios: null,
   });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       // Load dependencies first
-      const [clientesRes, produtosRes, planosRes] = await Promise.all([
-        clienteService.getAll({ size: 100 }),
-        produtoService.getAll({ size: 100 }),
-        planoService.getAll({ size: 100 }),
-      ]);
+      const [clientesRes, produtosRes, planosRes, usuariosRes] =
+        await Promise.all([
+          clienteService.getAll({ size: 100 }),
+          produtoService.getAll({ size: 100 }),
+          planoService.getAll({ size: 100 }),
+          usuarioService.getAll({ size: 1000 }),
+        ]);
 
       setClientes(clientesRes.content);
       setProdutos(produtosRes.content);
       setPlanos(planosRes.content);
+      setUsuarios(usuariosRes.content);
 
       // Load licenses, optionally filtered by client
       const params: Record<string, any> = { size: 100 };
@@ -96,13 +116,14 @@ export default function Licencas() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clienteIdParam, toast]);
 
   useEffect(() => {
     loadData();
-  }, [clienteIdParam]);
+  }, [loadData]);
 
-  const handleOpenModal = (licenca?: Licenca) => {
+  const handleOpenModal = async (licenca?: Licenca) => {
+    setTemTitulos(false);
     if (licenca) {
       setLicencaEditando(licenca);
       setFormData({
@@ -114,6 +135,23 @@ export default function Licencas() {
         limiteUsuarios: licenca.limiteUsuarios,
         status: licenca.status,
       });
+
+      // Verificar se existem títulos financeiros
+      setIsCheckingTitulos(true);
+      try {
+        const titulosRes = await financeiroService.getAll({
+          licencaId: licenca.id,
+          size: 1,
+        });
+        const totalElements =
+          (titulosRes as any).totalElements ??
+          (Array.isArray(titulosRes) ? titulosRes.length : 0);
+        setTemTitulos(totalElements > 0);
+      } catch (error) {
+        console.error("Erro ao verificar títulos:", error);
+      } finally {
+        setIsCheckingTitulos(false);
+      }
     } else {
       setLicencaEditando(null);
       const hoje = new Date();
@@ -127,6 +165,7 @@ export default function Licencas() {
         limiteUsuarios: null,
       });
     }
+    setApiError(null);
     setModalOpen(true);
   };
 
@@ -173,11 +212,15 @@ export default function Licencas() {
 
       setModalOpen(false);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar licença:", error);
+      const backendError = error.response?.data as ApiError;
+      setApiError(backendError);
+
       toast({
         title: "Erro",
-        description: "Não foi possível salvar a licença.",
+        description:
+          backendError?.message || "Não foi possível salvar a licença.",
         variant: "destructive",
       });
     }
@@ -268,6 +311,15 @@ export default function Licencas() {
       ),
     },
     {
+      key: "tagProduto",
+      header: "Tag",
+      cell: (licenca) => (
+        <code className="text-xs bg-muted px-1 rounded">
+          {licenca.tagProduto}
+        </code>
+      ),
+    },
+    {
       key: "dataExpiracao",
       header: "Expira em",
       cell: (licenca) => (
@@ -279,11 +331,16 @@ export default function Licencas() {
     {
       key: "usuariosAtivos",
       header: "Usuários",
-      cell: (licenca) => (
-        <span className="text-sm">
-          {licenca.usuariosAtivos} / {licenca.limiteUsuarios || "∞"}
-        </span>
-      ),
+      cell: (licenca) => {
+        const count = usuarios.filter(
+          (u) => u.clienteId === licenca.clienteId && u.ativo
+        ).length;
+        return (
+          <span className="text-sm">
+            {count} / {licenca.limiteUsuarios || "∞"}
+          </span>
+        );
+      },
     },
   ];
 
@@ -344,7 +401,36 @@ export default function Licencas() {
             </DialogDescription>
           </DialogHeader>
 
+          <ApiErrorAlert error={apiError} />
+
           <div className="space-y-4 py-4">
+            {temTitulos && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3 items-start mb-4">
+                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-amber-800">
+                    Edição Restrita
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    Esta licença possui títulos financeiros vinculados. Alguns
+                    campos foram bloqueados para garantir a integridade dos
+                    dados.
+                  </p>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-xs text-amber-800 font-semibold flex items-center gap-1"
+                    onClick={() => {
+                      setModalOpen(false);
+                      navigate(`/financeiro?licencaId=${licencaEditando?.id}`);
+                    }}
+                  >
+                    Ver títulos no Financeiro
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="cliente">Cliente</Label>
               <Select
@@ -352,7 +438,7 @@ export default function Licencas() {
                 onValueChange={(value) =>
                   setFormData({ ...formData, clienteId: value })
                 }
-                disabled={!!licencaEditando}
+                disabled={!!licencaEditando || temTitulos}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o cliente" />
@@ -375,7 +461,7 @@ export default function Licencas() {
                   onValueChange={(value) =>
                     setFormData({ ...formData, produtoId: value })
                   }
-                  disabled={!!licencaEditando}
+                  disabled={!!licencaEditando || temTitulos}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o produto" />
@@ -397,7 +483,7 @@ export default function Licencas() {
                   onValueChange={(value) =>
                     setFormData({ ...formData, planoId: value })
                   }
-                  disabled={!!licencaEditando}
+                  disabled={!!licencaEditando || temTitulos}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o plano" />
@@ -417,6 +503,19 @@ export default function Licencas() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tagProduto">Tag do Produto</Label>
+                <Input
+                  id="tagProduto"
+                  value={
+                    produtos.find((p) => p.id === formData.produtoId)
+                      ?.tagProduto || ""
+                  }
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -429,7 +528,7 @@ export default function Licencas() {
                   onChange={(e) =>
                     setFormData({ ...formData, dataInicio: e.target.value })
                   }
-                  disabled={!!licencaEditando}
+                  disabled={!!licencaEditando || temTitulos}
                 />
               </div>
 
@@ -442,6 +541,7 @@ export default function Licencas() {
                   onChange={(e) =>
                     setFormData({ ...formData, dataExpiracao: e.target.value })
                   }
+                  disabled={temTitulos}
                 />
               </div>
             </div>
@@ -461,6 +561,7 @@ export default function Licencas() {
                   })
                 }
                 placeholder="Deixe vazio para ilimitado"
+                disabled={temTitulos}
               />
             </div>
 
@@ -472,6 +573,7 @@ export default function Licencas() {
                   onValueChange={(value: Status) =>
                     setFormData({ ...formData, status: value })
                   }
+                  disabled={temTitulos}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
@@ -492,8 +594,11 @@ export default function Licencas() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar} disabled={isLoading}>
-              {isLoading ? "Salvando..." : "Salvar"}
+            <Button
+              onClick={handleSalvar}
+              disabled={isLoading || isCheckingTitulos}
+            >
+              {isLoading || isCheckingTitulos ? "Aguarde..." : "Salvar"}
             </Button>
           </div>
         </DialogContent>

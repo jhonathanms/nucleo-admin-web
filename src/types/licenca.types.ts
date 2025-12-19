@@ -14,6 +14,7 @@ export interface Licenca {
   dataExpiracao: string;
   limiteUsuarios: number | null;
   usuariosAtivos: number;
+  tagProduto: string;
   metadata?: Record<string, any>;
   criadoEm: string;
   atualizadoEm: string;

@@ -6,6 +6,8 @@ export interface Produto {
   descricao: string;
   tipo: ProdutoTipo;
   versao: string;
+  tagProduto: string;
+  modulos: string[];
   ativo: boolean;
   criadoEm: string;
   atualizadoEm: string;
@@ -18,6 +20,8 @@ export interface CreateProdutoDTO {
   descricao: string;
   tipo: ProdutoTipo;
   versao: string;
+  tagProduto: string;
+  modulos: string[];
 }
 
 export interface UpdateProdutoDTO {
@@ -25,6 +29,8 @@ export interface UpdateProdutoDTO {
   descricao?: string;
   tipo?: ProdutoTipo;
   versao?: string;
+  tagProduto?: string;
+  modulos?: string[];
   ativo?: boolean;
 }
 

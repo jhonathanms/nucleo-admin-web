@@ -13,6 +13,8 @@ import Licencas from "./pages/Licencas";
 import Usuarios from "./pages/Usuarios";
 import Financeiro from "./pages/Financeiro";
 import Auditoria from "./pages/Auditoria";
+import Configuracoes from "./pages/Configuracoes";
+import ContextoLicenca from "./pages/ContextoLicenca";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,7 +24,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
@@ -35,6 +37,8 @@ const App = () => (
             <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/financeiro" element={<Financeiro />} />
             <Route path="/auditoria" element={<Auditoria />} />
+            <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/contexto-licenca" element={<ContextoLicenca />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

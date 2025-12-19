@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { UserCircle, Plus, Shield } from "lucide-react";
 import usuarioService from "@/services/usuario.service";
 import clienteService from "@/services/cliente.service";
@@ -51,6 +51,14 @@ const INITIAL_FORM_DATA = {
   senha: "",
 };
 
+const isOnline = (ultimoAcesso?: string) => {
+  if (!ultimoAcesso) return false;
+  const lastAccess = new Date(ultimoAcesso).getTime();
+  const now = new Date().getTime();
+  const diffInMinutes = (now - lastAccess) / (1000 * 60);
+  return diffInMinutes < 10; // Considera online se acessou nos últimos 10 min
+};
+
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -69,11 +77,7 @@ export default function Usuarios() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       const [usuariosRes, clientesRes] = await Promise.all([
@@ -92,7 +96,11 @@ export default function Usuarios() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -113,7 +121,7 @@ export default function Usuarios() {
       nome: usuario.nome,
       email: usuario.email,
       role: usuario.role,
-      clienteId: "none", // TODO: If backend returns clienteId, map it here
+      clienteId: usuario.clienteId || "none",
       senha: "", // Password not needed for edit
     });
     setModalAberto(true);
@@ -220,7 +228,7 @@ export default function Usuarios() {
       header: "Usuário",
       cell: (usuario) => (
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 relative">
             <span className="text-sm font-medium text-primary">
               {usuario.nome
                 .split(" ")
@@ -228,9 +236,22 @@ export default function Usuarios() {
                 .join("")
                 .substring(0, 2)}
             </span>
+            {usuario.role === "CLIENTE" && isOnline(usuario.ultimoAcesso) && (
+              <span
+                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-green-500"
+                title="Online"
+              />
+            )}
           </div>
           <div>
-            <p className="font-medium">{usuario.nome}</p>
+            <p className="font-medium flex items-center gap-2">
+              {usuario.nome}
+              {usuario.role === "CLIENTE" && isOnline(usuario.ultimoAcesso) && (
+                <span className="text-[10px] font-bold text-green-500 uppercase tracking-wider">
+                  Online
+                </span>
+              )}
+            </p>
             <p className="text-xs text-muted-foreground">{usuario.email}</p>
           </div>
         </div>
@@ -245,6 +266,17 @@ export default function Usuarios() {
           variant={perfilLabels[usuario.role].variant}
           icon={Shield}
         />
+      ),
+    },
+    {
+      key: "clienteNome",
+      header: "Cliente",
+      cell: (usuario) => (
+        <span className="text-sm">
+          {usuario.role === "CLIENTE"
+            ? usuario.clienteNome || "Não associado"
+            : "Interno"}
+        </span>
       ),
     },
     {

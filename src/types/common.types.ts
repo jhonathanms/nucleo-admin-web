@@ -30,6 +30,8 @@ export interface QueryParams {
   sort?: string;
   direction?: "ASC" | "DESC";
   search?: string;
+  q?: string;
+  [key: string]: any;
 }
 
 export type Status =

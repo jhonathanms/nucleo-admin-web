@@ -3,7 +3,7 @@ import licencaService from "./licenca.service";
 import usuarioService from "./usuario.service";
 import financeiroService from "./financeiro.service";
 import auditoriaService from "./auditoria.service";
-import { DashboardData, RevenueData, Alert } from "@/types/dashboard.types";
+import { DashboardData, RevenueData } from "@/types/dashboard.types";
 
 class DashboardService {
   async getDashboardData(): Promise<DashboardData> {
@@ -11,9 +11,9 @@ class DashboardService {
       // Fetch counts in parallel
       const [clientesRes, licencasRes, usuariosRes, titulosRes, logsRes] =
         await Promise.all([
-          clienteService.getAll({ size: 1 }),
+          clienteService.getAll({ size: 1000 }),
           licencaService.getAll({ size: 1000 }), // Fetch more to calculate status distribution
-          usuarioService.getAll({ size: 1 }),
+          usuarioService.getAll({ size: 1000 }),
           financeiroService.getAll({ size: 1000 }), // Fetch more to calculate revenue
           auditoriaService.getAll({ size: 5, sort: "dataHora,desc" }),
         ]);
@@ -88,7 +88,18 @@ class DashboardService {
         revenueByMonth[formattedMonth] = 0;
       }
 
+      const financialStatusCounts: Record<string, number> = {
+        PAGO: 0,
+        PENDENTE: 0,
+        EM_ATRASO: 0,
+        CANCELADO: 0,
+      };
+
       titulos.forEach((t) => {
+        if (financialStatusCounts[t.status] !== undefined) {
+          financialStatusCounts[t.status]++;
+        }
+
         if (t.status === "PAGO" && t.dataPagamento) {
           const dataPagamento = new Date(t.dataPagamento);
           const mes = dataPagamento.getMonth();
@@ -120,6 +131,29 @@ class DashboardService {
         }
       });
 
+      const financialStatusChart = [
+        {
+          name: "Pagos",
+          value: financialStatusCounts.PAGO,
+          color: "hsl(160, 84%, 39%)",
+        },
+        {
+          name: "Pendentes",
+          value: financialStatusCounts.PENDENTE,
+          color: "hsl(38, 92%, 50%)",
+        },
+        {
+          name: "Em Atraso",
+          value: financialStatusCounts.EM_ATRASO,
+          color: "hsl(0, 84%, 60%)",
+        },
+        {
+          name: "Cancelados",
+          value: financialStatusCounts.CANCELADO,
+          color: "hsl(215, 16%, 47%)",
+        },
+      ].filter((item) => item.value > 0);
+
       // Calculate Trend
       let receitaTrend = 0;
       if (receitaMesAnterior > 0) {
@@ -137,6 +171,15 @@ class DashboardService {
       );
 
       // Recent Activities from Audit Logs
+      const acaoMap: Record<string, string> = {
+        CREATE: "Criação",
+        UPDATE: "Alteração",
+        DELETE: "Exclusão",
+        LOGIN: "Login",
+        LOGIN_FAILED: "Falha no Login",
+        LOGOUT: "Logout",
+      };
+
       const recentActivities = logsRes.content.map((log, index) => {
         const logDate = new Date(log.dataHora);
         const diffMs = now.getTime() - logDate.getTime();
@@ -151,44 +194,98 @@ class DashboardService {
 
         return {
           id: index + 1,
-          action: log.acao,
-          cliente: log.entidade, // Using entity as client/context
+          action: acaoMap[log.acao] || log.acao,
+          usuario: log.usuarioNome,
+          entidade: log.entidade,
           tempo,
         };
       });
 
-      // Alerts
-      const alerts: Alert[] = [];
+      // Financeiro: Hoje, Vencidos, Recentes
+      const todayStr = now.toISOString().split("T")[0];
 
-      // Expired Licenses
-      if (statusCounts.EXPIRADO > 0) {
-        alerts.push({
-          id: 1,
-          tipo: "warning",
-          mensagem: `${statusCounts.EXPIRADO} licenças expiradas`,
-        });
-      }
+      const titulosVencendoHoje = titulos
+        .filter((t) => t.status === "PENDENTE" && t.dataVencimento === todayStr)
+        .map((t) => ({
+          id: t.id,
+          clienteNome: t.clienteNome,
+          valor: t.valor,
+          dataVencimento: t.dataVencimento,
+          status: t.status,
+        }));
 
-      // Trial Clients
-      if (statusCounts.TRIAL > 0) {
-        alerts.push({
-          id: 2,
-          tipo: "info",
-          mensagem: `${statusCounts.TRIAL} clientes em período de trial`,
-        });
-      }
+      const titulosVencidos = titulos
+        .filter((t) => t.status === "EM_ATRASO")
+        .slice(0, 5)
+        .map((t) => ({
+          id: t.id,
+          clienteNome: t.clienteNome,
+          valor: t.valor,
+          dataVencimento: t.dataVencimento,
+          status: t.status,
+        }));
 
-      // Overdue Titles
-      const overdueTitles = titulos.filter(
-        (t) => t.status === "EM_ATRASO"
-      ).length;
-      if (overdueTitles > 0) {
-        alerts.push({
-          id: 3,
-          tipo: "destructive",
-          mensagem: `${overdueTitles} títulos em atraso`,
-        });
-      }
+      const titulosRecentes = titulos.slice(0, 5).map((t) => ({
+        id: t.id,
+        clienteNome: t.clienteNome,
+        valor: t.valor,
+        dataVencimento: t.dataVencimento,
+        status: t.status,
+      }));
+
+      // Licenças: Hoje, Expiradas, Recentes
+      const licencasExpirandoHoje = licencas
+        .filter((l) => l.status === "ATIVO" && l.dataExpiracao === todayStr)
+        .map((l) => ({
+          id: l.id,
+          clienteNome: l.clienteNome,
+          produtoNome: l.produtoNome,
+          dataExpiracao: l.dataExpiracao,
+          status: l.status,
+        }));
+
+      const licencasExpiradas = licencas
+        .filter((l) => l.status === "EXPIRADO")
+        .slice(0, 5)
+        .map((l) => ({
+          id: l.id,
+          clienteNome: l.clienteNome,
+          produtoNome: l.produtoNome,
+          dataExpiracao: l.dataExpiracao,
+          status: l.status,
+        }));
+
+      const licencasRecentes = licencas.slice(0, 5).map((l) => ({
+        id: l.id,
+        clienteNome: l.clienteNome,
+        produtoNome: l.produtoNome,
+        dataExpiracao: l.dataExpiracao,
+        status: l.status,
+      }));
+
+      // Calculate Trends for Clientes, Licencas and Usuarios
+      const getTrend = (items: any[], dateField: string) => {
+        const currentMonthStart = new Date(currentYear, currentMonth, 1);
+        const previousMonthStart = new Date(
+          previousMonthYear,
+          previousMonth,
+          1
+        );
+
+        const newThisMonth = items.filter(
+          (item) => new Date(item[dateField]) >= currentMonthStart
+        ).length;
+        const totalUntilLastMonth = items.filter(
+          (item) => new Date(item[dateField]) < currentMonthStart
+        ).length;
+
+        if (totalUntilLastMonth === 0) return newThisMonth > 0 ? 100 : 0;
+        return Math.round((newThisMonth / totalUntilLastMonth) * 100);
+      };
+
+      const clientesTrend = getTrend(clientesRes.content, "criadoEm");
+      const licencasTrend = getTrend(licencasRes.content, "criadoEm");
+      const usuariosTrend = getTrend(usuariosRes.content, "criadoEm");
 
       return {
         stats: {
@@ -196,24 +293,21 @@ class DashboardService {
           licencasAtivas: statusCounts.ATIVO,
           usuariosAtivos: totalUsuarios,
           receitaMensal,
-          clientesTrend: 12, // Still mocked as we don't have historical data for clients
-          licencasTrend: 8, // Still mocked
-          usuariosTrend: 5, // Still mocked
-          receitaTrend,
+          clientesTrend,
+          licencasTrend,
+          usuariosTrend,
+          receitaTrend: Math.round(receitaTrend),
         },
         revenueChart,
         licenseStatusChart,
+        financialStatusChart,
         recentActivities,
-        alerts:
-          alerts.length > 0
-            ? alerts
-            : [
-                {
-                  id: 0,
-                  tipo: "info",
-                  mensagem: "Sistema operando normalmente",
-                },
-              ],
+        titulosVencendoHoje,
+        titulosVencidos,
+        titulosRecentes,
+        licencasExpirandoHoje,
+        licencasExpiradas,
+        licencasRecentes,
       };
     } catch (error) {
       console.error("Error fetching dashboard data", error);

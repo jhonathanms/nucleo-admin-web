@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ClipboardList, Filter, Download } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column } from "@/components/DataTable";
@@ -13,11 +13,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Eye,
+  Clock,
+  User,
+  Globe,
+  Activity,
+  Database,
+  ShieldAlert,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import auditoriaService from "@/services/auditoria.service";
 import { LogAuditoria, NivelAuditoria } from "@/types/auditoria.types";
@@ -43,11 +61,18 @@ const entidadeLabels: Record<string, string> = {
   SISTEMA: "Sistema",
 };
 
-const nivelVariants: Record<string, "info" | "warning" | "destructive"> = {
-  INFO: "info",
-  WARNING: "warning",
+const nivelVariants: Record<string, "secondary" | "outline" | "destructive"> = {
+  INFO: "secondary",
+  WARNING: "outline",
   ERROR: "destructive",
 };
+
+const statusBadgeVariants: Record<string, "info" | "warning" | "destructive"> =
+  {
+    INFO: "info",
+    WARNING: "warning",
+    ERROR: "destructive",
+  };
 
 export default function Auditoria() {
   const [logs, setLogs] = useState<LogAuditoria[]>([]);
@@ -57,12 +82,13 @@ export default function Auditoria() {
   const [filtroNivel, setFiltroNivel] = useState<string>("todos");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
+  const [selectedLog, setSelectedLog] = useState<LogAuditoria | null>(null);
   const { toast } = useToast();
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params: any = { size: 20 }; // Default page size
+      const params: any = { size: 100 }; // Updated to 100 as requested
       if (filtroEntidade !== "todos") params.entidade = filtroEntidade;
       if (filtroNivel !== "todos") params.nivel = filtroNivel;
       if (dataInicio) params.dataInicio = dataInicio;
@@ -81,11 +107,11 @@ export default function Auditoria() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filtroEntidade, filtroNivel, dataInicio, dataFim, toast]);
 
   useEffect(() => {
     loadLogs();
-  }, [filtroEntidade, filtroNivel, dataInicio, dataFim]);
+  }, [loadLogs]);
 
   const columns: Column<LogAuditoria>[] = [
     {
@@ -105,8 +131,10 @@ export default function Auditoria() {
       header: "Usuário",
       cell: (log) => (
         <div>
-          <p className="text-sm font-medium">{log.usuario}</p>
-          <p className="text-xs text-muted-foreground">{log.usuarioEmail}</p>
+          <p className="text-sm font-medium">{log.usuarioNome}</p>
+          <p className="text-xs text-muted-foreground font-mono">
+            {log.usuarioId.substring(0, 8)}...
+          </p>
         </div>
       ),
     },
@@ -116,7 +144,7 @@ export default function Auditoria() {
       cell: (log) => (
         <StatusBadge
           status={acaoLabels[log.acao] || log.acao}
-          variant={nivelVariants[log.nivel] || "default"}
+          variant={log.nivel ? statusBadgeVariants[log.nivel] : "info"}
         />
       ),
     },
@@ -140,6 +168,18 @@ export default function Auditoria() {
       cell: (log) => (
         <span className="text-sm text-muted-foreground line-clamp-1 max-w-xs">
           {log.detalhes}
+        </span>
+      ),
+    },
+    {
+      key: "userAgent",
+      header: "Navegador/Sistema",
+      cell: (log) => (
+        <span
+          className="text-sm text-muted-foreground line-clamp-1 max-w-[200px]"
+          title={log.userAgent}
+        >
+          {log.userAgent}
         </span>
       ),
     },
@@ -265,7 +305,142 @@ export default function Auditoria() {
         columns={columns}
         searchKey="detalhes"
         searchPlaceholder="Buscar nos detalhes..."
+        itemsPerPage={100}
+        actions={[
+          {
+            label: "Ver Detalhes",
+            icon: Eye,
+            onClick: (log) => setSelectedLog(log),
+          },
+        ]}
       />
+
+      <Dialog
+        open={!!selectedLog}
+        onOpenChange={(open) => !open && setSelectedLog(null)}
+      >
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between mb-2">
+              <Badge
+                variant={
+                  selectedLog?.nivel
+                    ? nivelVariants[selectedLog.nivel]
+                    : "secondary"
+                }
+              >
+                {selectedLog?.nivel || "INFO"}
+              </Badge>
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {selectedLog && new Date(selectedLog.dataHora).toLocaleString()}
+              </span>
+            </div>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              {selectedLog &&
+                (acaoLabels[selectedLog.acao] || selectedLog.acao)}
+            </DialogTitle>
+            <DialogDescription>
+              Detalhes completos do registro de auditoria #
+              {selectedLog?.id.substring(0, 8)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-6 py-4">
+            {/* User Info */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2 border-b pb-1">
+                <User className="h-4 w-4 text-muted-foreground" /> Usuário
+              </h4>
+              <div className="grid grid-cols-2 gap-4 bg-muted/30 p-3 rounded-lg">
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                    Nome
+                  </p>
+                  <p className="text-sm font-medium">
+                    {selectedLog?.usuarioNome}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                    ID do Usuário
+                  </p>
+                  <p className="text-sm font-mono">{selectedLog?.usuarioId}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Entity Info */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2 border-b pb-1">
+                <Database className="h-4 w-4 text-muted-foreground" /> Entidade
+                Afetada
+              </h4>
+              <div className="grid grid-cols-2 gap-4 bg-muted/30 p-3 rounded-lg">
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                    Tipo
+                  </p>
+                  <p className="text-sm font-medium">
+                    {selectedLog &&
+                      (entidadeLabels[selectedLog.entidade] ||
+                        selectedLog.entidade)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                    ID da Entidade
+                  </p>
+                  <p className="text-sm font-mono">{selectedLog?.entidadeId}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Info */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2 border-b pb-1">
+                <Globe className="h-4 w-4 text-muted-foreground" /> Origem
+              </h4>
+              <div className="space-y-3 bg-muted/30 p-3 rounded-lg">
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                    Endereço IP
+                  </p>
+                  <p className="text-sm font-mono">{selectedLog?.ip}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                    User Agent
+                  </p>
+                  <p className="text-xs text-muted-foreground break-all bg-background/50 p-2 rounded mt-1 border border-border/50">
+                    {selectedLog?.userAgent}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Details/Payload */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2 border-b pb-1">
+                <ShieldAlert className="h-4 w-4 text-muted-foreground" />{" "}
+                Detalhes da Ação
+              </h4>
+              <div className="bg-muted/50 p-4 rounded-lg border border-border">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                  {selectedLog?.detalhes}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedLog(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

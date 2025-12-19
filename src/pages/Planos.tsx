@@ -1,8 +1,6 @@
-import { useState, useEffect } from "react";
-import { CreditCard, Plus, Copy } from "lucide-react";
+import { Action, Column, DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
-import { DataTable, Column, Action } from "@/components/DataTable";
-import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -22,16 +18,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import planoService from "@/services/plano.service";
 import produtoService from "@/services/produto.service";
 import {
   Plano,
   CreatePlanoDTO,
-  UpdatePlanoDTO,
   TipoCobranca,
-} from "@/types/plano.types";
+  UpdatePlanoDTO,
+  ApiError,
+} from "@/types";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 import { Produto } from "@/types/produto.types";
+import { Calculator, Copy, CreditCard, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 export default function Planos() {
   const [planos, setPlanos] = useState<Plano[]>([]);
@@ -39,21 +40,28 @@ export default function Planos() {
   const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null);
+  const [apiError, setApiError] = useState<ApiError | null>(null);
   const { toast } = useToast();
 
   // Local state for form fields
   const [formData, setFormData] = useState<Partial<Plano>>({
     tipoCobranca: "FIXO",
+    valor: 0,
+    valorBase: 0,
+    valorPorUsuario: 0,
+    quantidadePacotes: 1,
+    usuariosPorPacote: 10,
     trial: false,
     diasTrial: 0,
     ativo: true,
     recursos: [],
+    recursosDetalhados: [],
   });
 
   // Helper state for comma-separated resources input
   const [recursosInput, setRecursosInput] = useState("");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [planosRes, produtosRes] = await Promise.all([
@@ -72,11 +80,53 @@ export default function Planos() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
+
+  // Calculadora de Custos
+  useEffect(() => {
+    let total = 0;
+    if (formData.tipoCobranca === "FIXO") {
+      // No cálculo automático para FIXO, o valor é o que o usuário digitar
+      return;
+    } else if (formData.tipoCobranca === "USUARIO") {
+      const base = formData.valorBase || 0;
+      const porUsuario = formData.valorPorUsuario || 0;
+      const qtd = formData.limiteUsuarios || 0;
+      total = base + porUsuario * qtd;
+    } else if (formData.tipoCobranca === "PACOTE_USUARIO") {
+      const base = formData.valorBase || 0;
+      const qtd = formData.quantidadePacotes || 0;
+      total = base * qtd;
+
+      // Atualiza limite de usuários automaticamente
+      const usuPorPacote = formData.usuariosPorPacote || 0;
+      const totalUsu = qtd * usuPorPacote;
+      if (totalUsu !== formData.limiteUsuarios) {
+        setFormData((prev) => ({ ...prev, limiteUsuarios: totalUsu }));
+      }
+    } else if (formData.tipoCobranca === "RECURSO") {
+      total = (formData.recursosDetalhados || [])
+        .filter((r) => r.ativo)
+        .reduce((acc, r) => acc + r.valor, 0);
+    }
+
+    if (total !== formData.valor && formData.tipoCobranca !== ("FIXO" as any)) {
+      setFormData((prev) => ({ ...prev, valor: total }));
+    }
+  }, [
+    formData.tipoCobranca,
+    formData.valorBase,
+    formData.valorPorUsuario,
+    formData.limiteUsuarios,
+    formData.quantidadePacotes,
+    formData.usuariosPorPacote,
+    formData.recursosDetalhados,
+    formData.valor,
+  ]);
 
   const handleOpenModal = (plano?: Plano) => {
     if (plano) {
@@ -87,24 +137,36 @@ export default function Planos() {
         produtoId: plano.produtoId,
         tipoCobranca: plano.tipoCobranca,
         valor: plano.valor,
+        valorBase: plano.valorBase || 0,
+        valorPorUsuario: plano.valorPorUsuario || 0,
+        quantidadePacotes: plano.quantidadePacotes || 1,
+        usuariosPorPacote: plano.usuariosPorPacote || 10,
         limiteUsuarios: plano.limiteUsuarios,
         trial: plano.trial,
         diasTrial: plano.diasTrial,
         ativo: plano.ativo,
         recursos: plano.recursos,
+        recursosDetalhados: plano.recursosDetalhados || [],
       });
       setRecursosInput(plano.recursos ? plano.recursos.join(", ") : "");
     } else {
       setPlanoEditando(null);
       setFormData({
         tipoCobranca: "FIXO",
+        valor: 0,
+        valorBase: 0,
+        valorPorUsuario: 0,
+        quantidadePacotes: 1,
+        usuariosPorPacote: 10,
         trial: false,
         diasTrial: 0,
         ativo: true,
         recursos: [],
+        recursosDetalhados: [],
       });
       setRecursosInput("");
     }
+    setApiError(null);
     setModalAberto(true);
   };
 
@@ -141,7 +203,6 @@ export default function Planos() {
           description: "Plano atualizado com sucesso.",
         });
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { ativo, ...createData } = payload;
         await planoService.create(createData as CreatePlanoDTO);
         toast({ title: "Sucesso", description: "Plano criado com sucesso." });
@@ -149,11 +210,15 @@ export default function Planos() {
 
       setModalAberto(false);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar plano:", error);
+      const backendError = error.response?.data as ApiError;
+      setApiError(backendError);
+
       toast({
         title: "Erro",
-        description: "Não foi possível salvar o plano.",
+        description:
+          backendError?.message || "Não foi possível salvar o plano.",
         variant: "destructive",
       });
     }
@@ -166,11 +231,13 @@ export default function Planos() {
       await planoService.delete(plano.id);
       toast({ title: "Sucesso", description: "Plano excluído com sucesso." });
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao excluir plano:", error);
+      const backendError = error.response?.data as ApiError;
       toast({
         title: "Erro",
-        description: "Não foi possível excluir o plano.",
+        description:
+          backendError?.message || "Não foi possível excluir o plano.",
         variant: "destructive",
       });
     }
@@ -193,11 +260,13 @@ export default function Planos() {
       await planoService.create(novoPlano);
       toast({ title: "Sucesso", description: "Plano duplicado com sucesso." });
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao duplicar plano:", error);
+      const backendError = error.response?.data as ApiError;
       toast({
         title: "Erro",
-        description: "Não foi possível duplicar o plano.",
+        description:
+          backendError?.message || "Não foi possível duplicar o plano.",
         variant: "destructive",
       });
     }
@@ -227,7 +296,13 @@ export default function Planos() {
               currency: "BRL",
             }).format(plano.valor)}
           </p>
-          <p className="text-xs text-muted-foreground">{plano.tipoCobranca}</p>
+          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+            {plano.tipoCobranca === "USUARIO"
+              ? "Por Usuário"
+              : plano.tipoCobranca === "RECURSO"
+              ? "Por Recurso"
+              : "Valor Fixo"}
+          </p>
         </div>
       ),
     },
@@ -241,6 +316,9 @@ export default function Planos() {
             : "Ilimitado"}
         </span>
       ),
+    },
+    {
+      key: "criadoEm",
       header: "Criado em",
       cell: (plano) => (
         <span className="text-sm text-muted-foreground">
@@ -301,6 +379,8 @@ export default function Planos() {
             </DialogDescription>
           </DialogHeader>
 
+          <ApiErrorAlert error={apiError} />
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="produto">Produto</Label>
@@ -323,7 +403,7 @@ export default function Planos() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome do Plano</Label>
                 <Input
@@ -333,6 +413,18 @@ export default function Planos() {
                     setFormData({ ...formData, nome: e.target.value })
                   }
                   placeholder="Ex: Basic, Pro, Enterprise"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="descricao">Descrição</Label>
+                <Textarea
+                  id="descricao"
+                  value={formData.descricao || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, descricao: e.target.value })
+                  }
+                  placeholder="Descrição detalhada do plano"
+                  className="h-20"
                 />
               </div>
 
@@ -350,69 +442,328 @@ export default function Planos() {
                   <SelectContent>
                     <SelectItem value="FIXO">Valor Fixo</SelectItem>
                     <SelectItem value="USUARIO">Por Usuário</SelectItem>
+                    <SelectItem value="PACOTE_USUARIO">
+                      Por Pacote de Usuários
+                    </SelectItem>
                     <SelectItem value="RECURSO">Por Recurso</SelectItem>
-                    <SelectItem value="VOLUME">Por Volume</SelectItem>
+
+                    {/* Desabilitado temporariamente!! <SelectItem value="VOLUME">Por Volume</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="valor">Valor Mensal (R$)</Label>
-                <Input
-                  id="valor"
-                  type="number"
-                  step="0.01"
-                  value={formData.valor || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      valor: parseFloat(e.target.value),
-                    })
-                  }
-                  placeholder="0.00"
-                />
-              </div>
+            {formData.tipoCobranca === "FIXO" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="valor">Valor Mensal (R$)</Label>
+                  <Input
+                    id="valor"
+                    type="number"
+                    step="0.01"
+                    value={formData.valor || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        valor: parseFloat(e.target.value),
+                      })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="limiteUsuarios">Limite de Usuários</Label>
-                <Input
-                  id="limiteUsuarios"
-                  type="number"
-                  value={formData.limiteUsuarios || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      limiteUsuarios: e.target.value
-                        ? parseInt(e.target.value)
-                        : null,
-                    })
-                  }
-                  placeholder="Deixe vazio para ilimitado"
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="limiteUsuarios">Limite de Usuários</Label>
+                  <Input
+                    id="limiteUsuarios"
+                    type="number"
+                    value={formData.limiteUsuarios || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        limiteUsuarios: e.target.value
+                          ? parseInt(e.target.value)
+                          : null,
+                      })
+                    }
+                    placeholder="Deixe vazio para ilimitado"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Calculadora e Campos Dinâmicos (Oculto para FIXO) */}
+            {formData.tipoCobranca !== "FIXO" && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+                <div className="flex items-center gap-2 text-primary font-semibold text-sm mb-2">
+                  <Calculator className="h-4 w-4" />
+                  Calculadora de Custos
+                </div>
+
+                {formData.tipoCobranca === "USUARIO" && (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Por Usuário</Label>
+                      <Input
+                        type="number"
+                        value={formData.valorPorUsuario || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            valorPorUsuario: parseFloat(e.target.value),
+                          })
+                        }
+                        placeholder="0.00"
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Qtd. Usuários</Label>
+                      <Input
+                        type="number"
+                        value={formData.limiteUsuarios || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            limiteUsuarios: parseInt(e.target.value),
+                          })
+                        }
+                        placeholder="0"
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {formData.tipoCobranca === "PACOTE_USUARIO" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor Base</Label>
+                        <Input
+                          type="number"
+                          value={formData.valorBase || ""}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              valorBase: parseFloat(e.target.value),
+                            })
+                          }
+                          placeholder="0.00"
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Qtde. Pacotes</Label>
+                        <Input
+                          type="number"
+                          value={formData.quantidadePacotes || ""}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              quantidadePacotes: parseInt(e.target.value),
+                            })
+                          }
+                          placeholder="1"
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Usuários/Pacote</Label>
+                        <Input
+                          type="number"
+                          value={formData.usuariosPorPacote || ""}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              usuariosPorPacote: parseInt(e.target.value),
+                            })
+                          }
+                          placeholder="10"
+                          className="bg-background"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <p className="text-[10px] text-muted-foreground italic">
+                        * O Valor Total pode ser editado diretamente no rodapé
+                        da calculadora.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {formData.tipoCobranca === "RECURSO" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Módulos do Produto</Label>
+                      <Select
+                        onValueChange={(value) => {
+                          const novos = [
+                            ...(formData.recursosDetalhados || []),
+                          ];
+                          if (!novos.find((n) => n.nome === value)) {
+                            novos.push({
+                              nome: value,
+                              valor: 0,
+                              ativo: true,
+                            });
+                            setFormData({
+                              ...formData,
+                              recursosDetalhados: novos,
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-[150px] text-xs">
+                          <SelectValue placeholder="+ Adicionar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {produtos
+                            .find((p) => p.id === formData.produtoId)
+                            ?.modulos?.filter(
+                              (m) =>
+                                !(formData.recursosDetalhados || []).find(
+                                  (rd) => rd.nome === m
+                                )
+                            )
+                            .map((m) => (
+                              <SelectItem key={m} value={m}>
+                                {m}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+                      {(formData.recursosDetalhados || []).length === 0 && (
+                        <div className="text-center py-4 border border-dashed rounded-md text-muted-foreground text-xs">
+                          Nenhum módulo selecionado
+                        </div>
+                      )}
+                      {(formData.recursosDetalhados || []).map(
+                        (recurso, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 bg-background p-2 rounded-md border border-border"
+                          >
+                            <Switch
+                              checked={recurso.ativo}
+                              onCheckedChange={(checked) => {
+                                const novos = [
+                                  ...(formData.recursosDetalhados || []),
+                                ];
+                                novos[idx].ativo = checked;
+                                setFormData({
+                                  ...formData,
+                                  recursosDetalhados: novos,
+                                });
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">
+                                {recurso.nome}
+                              </p>
+                            </div>
+                            <Input
+                              type="number"
+                              className="h-8 text-xs w-20"
+                              value={recurso.valor}
+                              onChange={(e) => {
+                                const novos = [
+                                  ...(formData.recursosDetalhados || []),
+                                ];
+                                novos[idx].valor = parseFloat(e.target.value);
+                                setFormData({
+                                  ...formData,
+                                  recursosDetalhados: novos,
+                                });
+                              }}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => {
+                                const novos = (
+                                  formData.recursosDetalhados || []
+                                ).filter((_, i) => i !== idx);
+                                setFormData({
+                                  ...formData,
+                                  recursosDetalhados: novos,
+                                });
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-primary/10 flex justify-between items-center">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                      Total Mensal Estimado
+                    </span>
+                    {formData.tipoCobranca === "PACOTE_USUARIO" && (
+                      <span className="text-[9px] text-primary/70">
+                        ({formData.limiteUsuarios} usuários inclusos)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xl font-bold text-primary">R$</span>
+                    <Input
+                      className="text-xl font-bold text-primary"
+                      type="number"
+                      step="0.01"
+                      value={
+                        formData.valor == undefined || formData.valor == 0
+                          ? ""
+                          : formData.valor
+                      }
+                      onChange={(e) => {
+                        const total = parseFloat(e.target.value) || 0;
+                        if (formData.tipoCobranca === "PACOTE_USUARIO") {
+                          const qtd = formData.quantidadePacotes || 1;
+                          setFormData({
+                            ...formData,
+                            valor: total,
+                            valorBase: total / qtd,
+                          });
+                        } else if (formData.tipoCobranca === "USUARIO") {
+                          const porUsuario = formData.valorPorUsuario || 0;
+                          const qtd = formData.limiteUsuarios || 0;
+                          setFormData({
+                            ...formData,
+                            valor: total,
+                            valorBase: total - porUsuario * qtd,
+                          });
+                        } else {
+                          setFormData({ ...formData, valor: total });
+                        }
+                      }}
+                      readOnly={formData.tipoCobranca === "RECURSO"}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição</Label>
-              <Textarea
-                id="descricao"
-                value={formData.descricao || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, descricao: e.target.value })
-                }
-                placeholder="Descrição detalhada do plano"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="recursos">Recursos (separados por vírgula)</Label>
+              <Label htmlFor="recursos">
+                Recursos para Exibição (separados por vírgula)
+              </Label>
               <Textarea
                 id="recursos"
                 value={recursosInput}
                 onChange={(e) => setRecursosInput(e.target.value)}
                 placeholder="Ex: Suporte 24/7, Backup diário, API ilimitada"
+                className="h-16"
               />
             </div>
 

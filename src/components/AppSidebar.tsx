@@ -13,6 +13,7 @@ import {
   UserCircle,
   DollarSign,
   ClipboardList,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Building2,
@@ -28,6 +29,7 @@ const navigation = [
   { name: "Usuários", href: "/usuarios", icon: UserCircle },
   { name: "Financeiro", href: "/financeiro", icon: DollarSign },
   { name: "Auditoria", href: "/auditoria", icon: ClipboardList },
+  { name: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
 interface AppSidebarProps {

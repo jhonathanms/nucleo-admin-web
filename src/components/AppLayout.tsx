@@ -4,6 +4,7 @@ import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { cn } from "@/lib/utils";
 import authService from "@/services/auth.service";
+import sessaoService from "@/services/sessao.service";
 
 export function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -11,9 +12,31 @@ export function AppLayout() {
   const location = useLocation();
 
   useEffect(() => {
-    if (!authService.isAuthenticated()) {
-      navigate("/login", { replace: true, state: { from: location } });
-    }
+    const checkAuth = async () => {
+      const user = authService.getStoredUser();
+
+      if (!authService.isAuthenticated() || !user) {
+        navigate("/login", { replace: true, state: { from: location } });
+        return;
+      }
+
+      // Only validate product-specific session for CLIENTE role
+      if (user.role === "CLIENTE") {
+        try {
+          await sessaoService.validarSessao();
+        } catch (error: any) {
+          // Only redirect if it's a 401 (Unauthorized)
+          if (error.response?.status === 401) {
+            console.error("Session validation failed (Unauthorized):", error);
+            navigate("/login", { replace: true });
+          } else {
+            console.warn("Session validation endpoint error (non-401):", error);
+          }
+        }
+      }
+    };
+
+    checkAuth();
   }, [navigate, location]);
 
   // Inactivity Timeout Logic
@@ -60,6 +83,31 @@ export function AppLayout() {
         document.removeEventListener(event, resetTimer);
       });
     };
+  }, [navigate]);
+
+  // Heartbeat Logic (Every 5 minutes)
+  useEffect(() => {
+    const HEARTBEAT_INTERVAL = 5 * 60 * 1000;
+
+    const runHeartbeat = async () => {
+      const user = authService.getStoredUser();
+
+      // Only run heartbeat for CLIENTE role
+      if (authService.isAuthenticated() && user?.role === "CLIENTE") {
+        try {
+          await sessaoService.heartbeat();
+        } catch (error) {
+          console.error("Heartbeat failed:", error);
+          // If heartbeat fails, it likely means session is invalid
+          authService.logout();
+          navigate("/login", { replace: true });
+        }
+      }
+    };
+
+    const intervalId = setInterval(runHeartbeat, HEARTBEAT_INTERVAL);
+
+    return () => clearInterval(intervalId);
   }, [navigate]);
 
   if (!authService.isAuthenticated()) {

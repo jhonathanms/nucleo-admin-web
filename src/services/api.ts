@@ -8,6 +8,7 @@ import { TokenStorage } from "@/lib/token-storage";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8680/api";
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || "30000");
+const TAG_PRODUTO = import.meta.env.VITE_TAG_PRODUTO || "NUCLEO_ADMIN";
 
 // Flag to prevent multiple simultaneous refresh token requests
 let isRefreshing = false;
@@ -48,6 +49,11 @@ api.interceptors.request.use(
 
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Always add product tag header
+    if (config.headers) {
+      config.headers["X-TAG_PRODUTO"] = TAG_PRODUTO;
     }
 
     return config;
@@ -131,6 +137,21 @@ api.interceptors.response.use(
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    // Handle specific 401 error messages
+    if (error.response?.status === 401) {
+      const message = (error.response.data as any)?.message;
+      if (
+        message === "Header X-TAG_PRODUTO é obrigatório" ||
+        message === "Licença ativa não encontrada para o produto" ||
+        message === "Sessão inválida" ||
+        message === "Sessão expirada"
+      ) {
+        TokenStorage.clear();
+        window.location.href = "/login";
+        return Promise.reject(error);
       }
     }
 
