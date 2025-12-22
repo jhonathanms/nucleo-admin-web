@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Building2, Plus } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge, getStatusVariant } from "@/components/StatusBadge";
@@ -29,14 +29,34 @@ import {
   UpdateClienteDTO,
 } from "@/types/cliente.types";
 import { Status } from "@/types/common.types";
+import { useApiError } from "@/hooks/use-api-error";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function Clientes() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const clienteIdParam = queryParams.get("id");
+
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const { toast } = useToast();
+  const { apiError, handleError, clearError } = useApiError();
+
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
 
   // Form states - using Partial<Cliente> to cover all fields including status
   const [formData, setFormData] = useState<Partial<Cliente>>({
@@ -44,11 +64,16 @@ export default function Clientes() {
     status: "ATIVO",
   });
 
-  const loadClientes = async () => {
+  const loadClientes = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await clienteService.getAll({ size: 100 });
-      setClientes(response.content);
+      if (clienteIdParam) {
+        const cliente = await clienteService.getById(clienteIdParam);
+        setClientes([cliente]);
+      } else {
+        const response = await clienteService.getAll({ size: 100 });
+        setClientes(response.content);
+      }
     } catch (error) {
       console.error("Erro ao carregar clientes:", error);
       toast({
@@ -59,11 +84,11 @@ export default function Clientes() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clienteIdParam, toast]);
 
   useEffect(() => {
     loadClientes();
-  }, []);
+  }, [loadClientes]);
 
   const handleOpenModal = (cliente?: Cliente) => {
     if (cliente) {
@@ -83,6 +108,7 @@ export default function Clientes() {
         status: "ATIVO",
       });
     }
+    clearError();
     setModalAberto(true);
   };
 
@@ -108,7 +134,6 @@ export default function Clientes() {
         });
       } else {
         // Remove status from creation as it's not in CreateClienteDTO
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { status, ...createData } = formData;
         await clienteService.create(createData as CreateClienteDTO);
         toast({ title: "Sucesso", description: "Cliente criado com sucesso." });
@@ -117,30 +142,29 @@ export default function Clientes() {
       setModalAberto(false);
       loadClientes();
     } catch (error) {
-      console.error("Erro ao salvar cliente:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar o cliente.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível salvar o cliente.");
     }
   };
 
-  const handleDelete = async (cliente: Cliente) => {
-    if (!confirm(`Tem certeza que deseja excluir ${cliente.nome}?`)) return;
-
-    try {
-      await clienteService.delete(cliente.id);
-      toast({ title: "Sucesso", description: "Cliente excluído com sucesso." });
-      loadClientes();
-    } catch (error) {
-      console.error("Erro ao excluir cliente:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o cliente.",
-        variant: "destructive",
-      });
-    }
+  const handleDelete = (cliente: Cliente) => {
+    setConfirmModal({
+      open: true,
+      title: "Excluir Cliente",
+      description: `Tem certeza que deseja excluir o cliente "${cliente.nome}"? Esta ação não pode ser desfeita.`,
+      onConfirm: async () => {
+        try {
+          await clienteService.delete(cliente.id);
+          toast({
+            title: "Sucesso",
+            description: "Cliente excluído com sucesso.",
+          });
+          loadClientes();
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        } catch (error) {
+          handleError(error, "Não foi possível excluir o cliente.");
+        }
+      },
+    });
   };
 
   const columns: Column<Cliente>[] = [
@@ -250,6 +274,8 @@ export default function Clientes() {
             </DialogDescription>
           </DialogHeader>
 
+          <ApiErrorAlert error={apiError} />
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="tipo">Tipo</Label>
@@ -355,6 +381,15 @@ export default function Clientes() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmModal.open}
+        onOpenChange={(open) => setConfirmModal((prev) => ({ ...prev, open }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        variant="destructive"
+      />
     </div>
   );
 }

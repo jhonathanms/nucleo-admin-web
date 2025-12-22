@@ -31,8 +31,8 @@ export interface Plano {
 export type TipoCobranca =
   | "USUARIO"
   | "RECURSO"
-  | "VOLUME"
   | "FIXO"
+  | "VOLUME"
   | "PACOTE_USUARIO";
 
 export interface CreatePlanoDTO {

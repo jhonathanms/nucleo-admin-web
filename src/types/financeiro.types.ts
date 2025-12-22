@@ -41,6 +41,11 @@ export interface CreateTituloDTO {
   periodicidade?: Periodicidade;
   quantidadeParcelas?: number;
   vincularLicenca?: boolean;
+  // Campos avançados de recorrência
+  diaVencimentoPadrao?: number;
+  parcelasPersonalizadas?: { dataVencimento: string; valor: number }[];
+  periodoCobrancaInicio?: string;
+  periodoCobrancaFim?: string;
 }
 
 export interface UpdateTituloDTO {

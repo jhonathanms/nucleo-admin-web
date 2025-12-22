@@ -29,6 +29,7 @@ export interface CreateUsuarioDTO {
 export interface UpdateUsuarioDTO {
   nome?: string;
   email?: string;
+  senha?: string;
   role?: UserRole;
   ativo?: boolean;
   telefone?: string;

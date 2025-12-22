@@ -32,6 +32,7 @@ import {
   Edit,
   Save,
   Send,
+  Palette,
 } from "lucide-react";
 import { DataTable } from "@/components/DataTable";
 import {
@@ -42,6 +43,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ThemeSection } from "@/components/ThemeSection";
+import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
 
 export default function Configuracoes() {
   const { toast } = useToast();
@@ -224,8 +227,11 @@ export default function Configuracoes() {
         description="Gerencie as configurações globais do sistema."
       />
 
-      <Tabs defaultValue="smtp" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+      <Tabs defaultValue="aparencia" className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsTrigger value="aparencia" className="flex items-center gap-2">
+            <Palette className="h-4 w-4" /> Aparência
+          </TabsTrigger>
           <TabsTrigger value="smtp" className="flex items-center gap-2">
             <Mail className="h-4 w-4" /> E-mail (SMTP)
           </TabsTrigger>
@@ -233,6 +239,10 @@ export default function Configuracoes() {
             <FileText className="h-4 w-4" /> Templates
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="aparencia" className="mt-6">
+          <ThemeSection />
+        </TabsContent>
 
         <TabsContent value="smtp" className="mt-6">
           <Card>
@@ -344,14 +354,30 @@ export default function Configuracoes() {
 
       {/* Modal de Template */}
       <Dialog open={modalTemplateAberto} onOpenChange={setModalTemplateAberto}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedTemplate?.id ? "Editar Template" : "Novo Template"}
             </DialogTitle>
             <DialogDescription>
-              Configure o conteúdo do e-mail. Use variáveis como {"{{nome}}"},{" "}
-              {"{{valor}}"}, {"{{vencimento}}"}.
+              Configure o conteúdo do e-mail utilizando texto personalizado e
+              variáveis dinâmicas. As variáveis disponíveis permitem inserir
+              automaticamente informações do destinatário e da cobrança no corpo
+              da mensagem. Utilize, por exemplo:{" "}
+              <span className="text-orange-600 font-medium">
+                {"{{ nome }}"}
+              </span>{" "}
+              para o nome do cliente,{" "}
+              <span className="text-orange-600 font-medium">
+                {"{{ valor }}"}
+              </span>{" "}
+              para o valor da cobrança e{" "}
+              <span className="text-orange-600 font-medium">
+                {"{{ vencimento }}"}
+              </span>
+              para a data de vencimento. Essas variáveis serão substituídas
+              automaticamente no momento do envio do e-mail, garantindo
+              comunicação personalizada e consistente.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -403,17 +429,16 @@ export default function Configuracoes() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Corpo do E-mail (HTML/Texto)</Label>
-              <Textarea
-                className="min-h-[200px]"
+              <Label>Corpo do E-mail (Editor Visual)</Label>
+              <EmailTemplateEditor
                 value={selectedTemplate?.corpo || ""}
-                onChange={(e) =>
+                onChange={(html) =>
                   setSelectedTemplate({
                     ...selectedTemplate,
-                    corpo: e.target.value,
+                    corpo: html,
                   })
                 }
-                placeholder="Olá {{nome}}, seu título no valor de {{valor}} vence em {{vencimento}}..."
+                tipo={selectedTemplate?.tipo || "GERAL"}
               />
             </div>
           </div>

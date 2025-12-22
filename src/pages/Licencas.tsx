@@ -6,6 +6,8 @@ import {
   Ban,
   AlertCircle,
   ExternalLink,
+  Filter,
+  X,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
@@ -45,8 +47,10 @@ import { Plano } from "@/types/plano.types";
 import { Status } from "@/types/common.types";
 import usuarioService from "@/services/usuario.service";
 import { Usuario } from "@/types/usuario.types";
-import { ApiError } from "@/types";
 import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { useApiError } from "@/hooks/use-api-error";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Licencas() {
   const location = useLocation();
@@ -63,6 +67,17 @@ export default function Licencas() {
   const [temTitulos, setTemTitulos] = useState(false);
   const navigate = useNavigate();
 
+  // Filtros
+  const [filtroProduto, setFiltroProduto] = useState<string>("TODOS");
+  const [filtroCliente, setFiltroCliente] = useState<string>(
+    clienteIdParam || "TODOS"
+  );
+  const [filtroPlano, setFiltroPlano] = useState<string>("TODOS");
+  const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
+  const [filtroDataExpInicio, setFiltroDataExpInicio] = useState("");
+  const [filtroDataExpFim, setFiltroDataExpFim] = useState("");
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [renovarModalOpen, setRenovarModalOpen] = useState(false);
   const [licencaEditando, setLicencaEditando] = useState<Licenca | null>(null);
@@ -72,7 +87,19 @@ export default function Licencas() {
   const [mesesRenovacao, setMesesRenovacao] = useState(12);
 
   const { toast } = useToast();
-  const [apiError, setApiError] = useState<ApiError | null>(null);
+  const { apiError, handleError, clearError } = useApiError();
+
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
 
   // Form state
   const [formData, setFormData] = useState<
@@ -98,11 +125,18 @@ export default function Licencas() {
       setPlanos(planosRes.content);
       setUsuarios(usuariosRes.content);
 
-      // Load licenses, optionally filtered by client
+      // Load licenses with filters
       const params: Record<string, any> = { size: 100 };
-      if (clienteIdParam) {
-        params.clienteId = clienteIdParam;
-      }
+
+      if (filtroCliente && filtroCliente !== "TODOS")
+        params.clienteId = filtroCliente;
+      if (filtroProduto && filtroProduto !== "TODOS")
+        params.produtoId = filtroProduto;
+      if (filtroPlano && filtroPlano !== "TODOS") params.planoId = filtroPlano;
+      if (filtroStatus && filtroStatus !== "TODOS")
+        params.status = filtroStatus;
+      if (filtroDataExpInicio) params.dataExpiracaoInicio = filtroDataExpInicio;
+      if (filtroDataExpFim) params.dataExpiracaoFim = filtroDataExpFim;
 
       const licencasRes = await licencaService.getAll(params);
       setLicencas(licencasRes.content);
@@ -116,7 +150,15 @@ export default function Licencas() {
     } finally {
       setIsLoading(false);
     }
-  }, [clienteIdParam, toast]);
+  }, [
+    filtroCliente,
+    filtroProduto,
+    filtroPlano,
+    filtroStatus,
+    filtroDataExpInicio,
+    filtroDataExpFim,
+    toast,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -160,12 +202,15 @@ export default function Licencas() {
 
       setFormData({
         clienteId: clienteIdParam || "",
+        produtoId: undefined,
+        planoId: undefined,
+        status: "ATIVO",
         dataInicio: hoje.toISOString().split("T")[0],
         dataExpiracao: anoQueVem.toISOString().split("T")[0],
         limiteUsuarios: null,
       });
     }
-    setApiError(null);
+    clearError();
     setModalOpen(true);
   };
 
@@ -213,16 +258,7 @@ export default function Licencas() {
       setModalOpen(false);
       loadData();
     } catch (error: any) {
-      console.error("Erro ao salvar licença:", error);
-      const backendError = error.response?.data as ApiError;
-      setApiError(backendError);
-
-      toast({
-        title: "Erro",
-        description:
-          backendError?.message || "Não foi possível salvar a licença.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível salvar a licença.");
     }
   };
 
@@ -247,26 +283,25 @@ export default function Licencas() {
     }
   };
 
-  const handleSuspender = async (licenca: Licenca) => {
-    if (
-      !confirm(
-        `Tem certeza que deseja suspender a licença de ${licenca.clienteNome}?`
-      )
-    )
-      return;
-
-    try {
-      await licencaService.suspender(licenca.id);
-      toast({ title: "Sucesso", description: "Licença suspensa com sucesso." });
-      loadData();
-    } catch (error) {
-      console.error("Erro ao suspender licença:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível suspender a licença.",
-        variant: "destructive",
-      });
-    }
+  const handleSuspender = (licenca: Licenca) => {
+    setConfirmModal({
+      open: true,
+      title: "Suspender Licença",
+      description: `Tem certeza que deseja suspender a licença de "${licenca.clienteNome}"?`,
+      onConfirm: async () => {
+        try {
+          await licencaService.suspender(licenca.id);
+          toast({
+            title: "Sucesso",
+            description: "Licença suspensa com sucesso.",
+          });
+          loadData();
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        } catch (error) {
+          handleError(error, "Não foi possível suspender a licença.");
+        }
+      },
+    });
   };
 
   const columns: Column<Licenca>[] = [
@@ -366,6 +401,15 @@ export default function Licencas() {
     },
   ];
 
+  const limparFiltros = () => {
+    setFiltroCliente("TODOS");
+    setFiltroProduto("TODOS");
+    setFiltroPlano("TODOS");
+    setFiltroStatus("TODOS");
+    setFiltroDataExpInicio("");
+    setFiltroDataExpFim("");
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -378,6 +422,158 @@ export default function Licencas() {
           icon: Plus,
         }}
       />
+
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setMostrarFiltros(!mostrarFiltros)}
+          className="gap-2"
+        >
+          <Filter className="h-4 w-4" />
+          Filtros
+        </Button>
+      </div>
+
+      {mostrarFiltros && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-medium">
+                Filtros Avançados
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={limparFiltros}
+                className="h-8 text-xs"
+              >
+                <X className="mr-2 h-3 w-3" />
+                Limpar Filtros
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Select value={filtroCliente} onValueChange={setFiltroCliente}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos</SelectItem>
+                    {clientes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Produto</Label>
+                <Select value={filtroProduto} onValueChange={setFiltroProduto}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos</SelectItem>
+                    {produtos.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Plano</Label>
+                <Select value={filtroPlano} onValueChange={setFiltroPlano}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos</SelectItem>
+                    {planos
+                      .filter(
+                        (p) =>
+                          filtroProduto === "TODOS" ||
+                          p.produtoId === filtroProduto
+                      )
+                      .map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.nome}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos</SelectItem>
+                    <SelectItem value="ATIVO">Ativo</SelectItem>
+                    <SelectItem value="INATIVO">Inativo</SelectItem>
+                    <SelectItem value="SUSPENSO">Suspenso</SelectItem>
+                    <SelectItem value="TRIAL">Trial</SelectItem>
+                    <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Expiração (Início)</Label>
+                <Input
+                  type="date"
+                  value={filtroDataExpInicio}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (filtroDataExpFim && val > filtroDataExpFim) {
+                      toast({
+                        title: "Data inválida",
+                        description:
+                          "Data inicial não pode ser maior que a final.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    setFiltroDataExpInicio(val);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Expiração (Fim)</Label>
+                <Input
+                  type="date"
+                  value={filtroDataExpFim}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (filtroDataExpInicio && val < filtroDataExpInicio) {
+                      toast({
+                        title: "Data inválida",
+                        description:
+                          "Data final não pode ser menor que a inicial.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    setFiltroDataExpFim(val);
+                  }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <DataTable
         data={licencas}
@@ -480,9 +676,16 @@ export default function Licencas() {
                 <Label htmlFor="plano">Plano</Label>
                 <Select
                   value={formData.planoId}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, planoId: value })
-                  }
+                  onValueChange={(value) => {
+                    const planoSelecionado = planos.find((p) => p.id === value);
+                    setFormData({
+                      ...formData,
+                      planoId: value,
+                      limiteUsuarios:
+                        planoSelecionado?.limiteUsuarios ??
+                        formData.limiteUsuarios,
+                    });
+                  }}
                   disabled={!!licencaEditando || temTitulos}
                 >
                   <SelectTrigger>
@@ -548,21 +751,56 @@ export default function Licencas() {
 
             <div className="space-y-2">
               <Label htmlFor="limiteUsuarios">Limite de Usuários</Label>
-              <Input
-                id="limiteUsuarios"
-                type="number"
-                value={formData.limiteUsuarios || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    limiteUsuarios: e.target.value
-                      ? parseInt(e.target.value)
-                      : null,
-                  })
-                }
-                placeholder="Deixe vazio para ilimitado"
-                disabled={temTitulos}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="limiteUsuarios"
+                  type="number"
+                  value={formData.limiteUsuarios || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      limiteUsuarios: e.target.value
+                        ? parseInt(e.target.value)
+                        : null,
+                    })
+                  }
+                  placeholder="Deixe vazio para ilimitado"
+                  disabled={temTitulos}
+                />
+                {formData.planoId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title="Restaurar valor do plano"
+                    onClick={() => {
+                      const plano = planos.find(
+                        (p) => p.id === formData.planoId
+                      );
+                      if (plano)
+                        setFormData({
+                          ...formData,
+                          limiteUsuarios: plano.limiteUsuarios,
+                        });
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {formData.planoId && (
+                <p className="text-[10px] text-muted-foreground">
+                  Plano selecionado:{" "}
+                  {planos.find((p) => p.id === formData.planoId)?.nome} (
+                  {planos.find((p) => p.id === formData.planoId)?.limiteUsuarios
+                    ? `${
+                        planos.find((p) => p.id === formData.planoId)
+                          ?.limiteUsuarios
+                      } usuários`
+                    : "Ilimitado"}
+                  )
+                </p>
+              )}
             </div>
 
             {licencaEditando && (
@@ -573,7 +811,7 @@ export default function Licencas() {
                   onValueChange={(value: Status) =>
                     setFormData({ ...formData, status: value })
                   }
-                  disabled={temTitulos}
+                  // disabled={temTitulos}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
@@ -638,6 +876,15 @@ export default function Licencas() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmModal.open}
+        onOpenChange={(open) => setConfirmModal((prev) => ({ ...prev, open }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        variant="destructive"
+      />
     </div>
   );
 }

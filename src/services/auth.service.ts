@@ -15,12 +15,36 @@ class AuthService {
    * Login user with email and password
    */
   async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await api.post<LoginResponse>("/auth/login", data);
+    // Use skipAuthRedirect to prevent interceptor from redirecting on login failure
+    const response = await api.post<LoginResponse>("/auth/login", data, {
+      headers: { skipAuthRedirect: "true" },
+    });
+
+    // Check if user has permission to access the admin panel
+    // Only internal users (ADMIN, GERENTE, OPERADOR) can access
+    if (response.data.user.role === "CLIENTE") {
+      // Throw an error that mimics an API error structure so it can be handled by the UI
+      throw {
+        response: {
+          status: 403,
+          data: {
+            message:
+              "Acesso negado. Usuário não possui permissão para acessar este sistema.",
+            error: "Forbidden",
+          },
+        },
+      };
+    }
 
     // Save tokens and user data
     TokenStorage.setAccessToken(response.data.accessToken);
     TokenStorage.setRefreshToken(response.data.refreshToken);
     TokenStorage.setUser(response.data.user);
+
+    // Update theme if user has preference
+    if (response.data.user.tema) {
+      localStorage.setItem("nucleo-admin-theme", response.data.user.tema);
+    }
 
     return response.data;
   }
@@ -87,6 +111,13 @@ class AuthService {
   }
 
   /**
+   * Update user theme preference
+   */
+  async updateTheme(theme: "light" | "dark" | "system"): Promise<void> {
+    await api.put("/auth/theme", { theme });
+  }
+
+  /**
    * Change user password
    */
   async changePassword(data: ChangePasswordRequest): Promise<void> {
@@ -98,6 +129,46 @@ class AuthService {
    */
   isAuthenticated(): boolean {
     return TokenStorage.isAuthenticated();
+  }
+
+  /**
+   * Request password reset email
+   */
+  async forgotPassword(email: string): Promise<void> {
+    await api.post(
+      "/auth/esqueci-senha",
+      { email },
+      {
+        headers: { skipAuthRedirect: "true" },
+      }
+    );
+  }
+
+  /**
+   * Validate password reset token
+   */
+  async validateResetToken(
+    token: string
+  ): Promise<{ valido: boolean; email?: string }> {
+    const response = await api.post<{ valido: boolean; email?: string }>(
+      "/auth/validar-token-redefinicao",
+      { token },
+      { headers: { skipAuthRedirect: "true" } }
+    );
+    return response.data;
+  }
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await api.post(
+      "/auth/redefinir-senha",
+      { token, novaSenha: newPassword },
+      {
+        headers: { skipAuthRedirect: "true" },
+      }
+    );
   }
 
   /**

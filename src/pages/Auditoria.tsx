@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ClipboardList, Filter, Download } from "lucide-react";
+import { ClipboardList, Filter, Download, FileText, File } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -25,8 +25,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Eye,
   Clock,
@@ -38,7 +43,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import auditoriaService from "@/services/auditoria.service";
-import { LogAuditoria, NivelAuditoria } from "@/types/auditoria.types";
+import { LogAuditoria } from "@/types/auditoria.types";
 
 const acaoLabels: Record<string, string> = {
   CREATE: "Criação",
@@ -48,6 +53,19 @@ const acaoLabels: Record<string, string> = {
   LOGIN_FAILED: "Login Falhou",
   LOGOUT: "Logout",
   BACKUP: "Backup",
+};
+
+const acaoVariants: Record<
+  string,
+  "success" | "warning" | "destructive" | "info" | "muted" | "default"
+> = {
+  CREATE: "success",
+  UPDATE: "warning",
+  DELETE: "destructive",
+  LOGIN: "info",
+  LOGIN_FAILED: "destructive",
+  LOGOUT: "muted",
+  BACKUP: "default",
 };
 
 const entidadeLabels: Record<string, string> = {
@@ -61,25 +79,11 @@ const entidadeLabels: Record<string, string> = {
   SISTEMA: "Sistema",
 };
 
-const nivelVariants: Record<string, "secondary" | "outline" | "destructive"> = {
-  INFO: "secondary",
-  WARNING: "outline",
-  ERROR: "destructive",
-};
-
-const statusBadgeVariants: Record<string, "info" | "warning" | "destructive"> =
-  {
-    INFO: "info",
-    WARNING: "warning",
-    ERROR: "destructive",
-  };
-
 export default function Auditoria() {
   const [logs, setLogs] = useState<LogAuditoria[]>([]);
   const [totalLogs, setTotalLogs] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todos");
-  const [filtroNivel, setFiltroNivel] = useState<string>("todos");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [selectedLog, setSelectedLog] = useState<LogAuditoria | null>(null);
@@ -88,9 +92,8 @@ export default function Auditoria() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params: any = { size: 100 }; // Updated to 100 as requested
+      const params: any = { size: 100 };
       if (filtroEntidade !== "todos") params.entidade = filtroEntidade;
-      if (filtroNivel !== "todos") params.nivel = filtroNivel;
       if (dataInicio) params.dataInicio = dataInicio;
       if (dataFim) params.dataFim = dataFim;
 
@@ -107,11 +110,151 @@ export default function Auditoria() {
     } finally {
       setIsLoading(false);
     }
-  }, [filtroEntidade, filtroNivel, dataInicio, dataFim, toast]);
+  }, [filtroEntidade, dataInicio, dataFim, toast]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  const handleExportCSV = () => {
+    if (logs.length === 0) {
+      toast({
+        title: "Sem dados",
+        description: "Não há dados para exportar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = [
+      "Data/Hora",
+      "Usuário",
+      "Ação",
+      "Entidade",
+      "ID Entidade",
+      "Detalhes",
+      "IP",
+    ];
+
+    const csvContent = [
+      headers.join(";"),
+      ...logs.map((log) => {
+        return [
+          new Date(log.dataHora).toLocaleString("pt-BR"),
+          log.usuarioNome,
+          acaoLabels[log.acao] || log.acao,
+          entidadeLabels[log.entidade] || log.entidade,
+          log.entidadeId,
+          `"${log.detalhes.replace(/"/g, '""')}"`,
+          log.ip,
+        ].join(";");
+      }),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `auditoria_export_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    if (logs.length === 0) {
+      toast({
+        title: "Sem dados",
+        description: "Não há dados para exportar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const content = `
+      <html>
+        <head>
+          <title>Relatório de Auditoria</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; color: #333; }
+            .header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+            .title { font-size: 24px; font-weight: bold; color: #000; }
+            .subtitle { font-size: 14px; color: #666; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { text-align: left; background-color: #f5f5f5; padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold; }
+            td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+            .footer { margin-top: 50px; border-top: 1px solid #eee; padding-top: 20px; font-size: 10px; color: #999; text-align: center; }
+            .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+            .badge-success { background: #dcfce7; color: #166534; }
+            .badge-warning { background: #fef9c3; color: #854d0e; }
+            .badge-destructive { background: #fee2e2; color: #b91c1c; }
+            .badge-info { background: #e0f2fe; color: #0369a1; }
+            .badge-muted { background: #f3f4f6; color: #374151; }
+            .badge-default { background: #f3f4f6; color: #374151; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">Relatório de Auditoria</div>
+              <div class="subtitle">Núcleo Admin - Sistema de Gestão</div>
+            </div>
+            <div style="text-align: right; font-size: 12px;">
+              <p>Gerado em: ${new Date().toLocaleString("pt-BR")}</p>
+              <p>Registros: ${logs.length}</p>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th width="15%">Data/Hora</th>
+                <th width="15%">Usuário</th>
+                <th width="10%">Ação</th>
+                <th width="10%">Entidade</th>
+                <th width="50%">Detalhes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${logs
+                .map((log) => {
+                  const variant = acaoVariants[log.acao] || "default";
+                  const badgeClass = `badge-${variant}`;
+
+                  return `
+                  <tr>
+                    <td>${new Date(log.dataHora).toLocaleString("pt-BR")}</td>
+                    <td>${log.usuarioNome}</td>
+                    <td><span class="badge ${badgeClass}">${
+                    acaoLabels[log.acao] || log.acao
+                  }</span></td>
+                    <td>${entidadeLabels[log.entidade] || log.entidade}</td>
+                    <td>${log.detalhes}</td>
+                  </tr>
+                `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Este documento é um relatório gerado eletronicamente.<br>
+            Núcleo Admin &copy; ${new Date().getFullYear()}
+          </div>
+          <script>window.print();</script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(content);
+    printWindow.document.close();
+  };
 
   const columns: Column<LogAuditoria>[] = [
     {
@@ -144,7 +287,7 @@ export default function Auditoria() {
       cell: (log) => (
         <StatusBadge
           status={acaoLabels[log.acao] || log.acao}
-          variant={log.nivel ? statusBadgeVariants[log.nivel] : "info"}
+          variant={acaoVariants[log.acao] || "default"}
         />
       ),
     },
@@ -232,21 +375,6 @@ export default function Auditoria() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Nível</Label>
-                <Select value={filtroNivel} onValueChange={setFiltroNivel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="INFO">Info</SelectItem>
-                    <SelectItem value="WARNING">Warning</SelectItem>
-                    <SelectItem value="ERROR">Error</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-2">
                   <Label>Data Início</Label>
@@ -271,7 +399,6 @@ export default function Auditoria() {
                 className="w-full"
                 onClick={() => {
                   setFiltroEntidade("todos");
-                  setFiltroNivel("todos");
                   setDataInicio("");
                   setDataFim("");
                 }}
@@ -282,22 +409,31 @@ export default function Auditoria() {
           </PopoverContent>
         </Popover>
 
-        <Button variant="outline" className="gap-2">
-          <Download className="h-4 w-4" />
-          Exportar
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportCSV}>
+              <FileText className="mr-2 h-4 w-4" />
+              Exportar CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportPDF}>
+              <File className="mr-2 h-4 w-4" />
+              Exportar PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </PageHeader>
 
-      {/* Summary cards - Simplified for now as we don't have aggregated stats endpoint */}
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total de Logs</p>
           <p className="text-2xl font-bold">{totalLogs}</p>
         </div>
-        {/* 
-          Placeholder for other stats if backend provides aggregation later.
-          For now, we only show total logs found by current filter.
-        */}
       </div>
 
       <DataTable
@@ -322,15 +458,18 @@ export default function Auditoria() {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between mb-2">
-              <Badge
-                variant={
-                  selectedLog?.nivel
-                    ? nivelVariants[selectedLog.nivel]
-                    : "secondary"
+              <StatusBadge
+                status={
+                  selectedLog
+                    ? acaoLabels[selectedLog.acao] || selectedLog.acao
+                    : ""
                 }
-              >
-                {selectedLog?.nivel || "INFO"}
-              </Badge>
+                variant={
+                  selectedLog
+                    ? acaoVariants[selectedLog.acao] || "default"
+                    : "default"
+                }
+              />
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {selectedLog && new Date(selectedLog.dataHora).toLocaleString()}
@@ -338,12 +477,10 @@ export default function Auditoria() {
             </div>
             <DialogTitle className="text-xl flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
-              {selectedLog &&
-                (acaoLabels[selectedLog.acao] || selectedLog.acao)}
+              Detalhes da Auditoria
             </DialogTitle>
             <DialogDescription>
-              Detalhes completos do registro de auditoria #
-              {selectedLog?.id.substring(0, 8)}
+              Registro #{selectedLog?.id.substring(0, 8)}
             </DialogDescription>
           </DialogHeader>
 

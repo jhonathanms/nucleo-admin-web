@@ -75,8 +75,15 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
+    // Skip auth redirect if flag is set (e.g., during login attempts)
+    const skipAuthRedirect = originalRequest.headers?.skipAuthRedirect;
+
     // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !skipAuthRedirect
+    ) {
       if (isRefreshing) {
         // If already refreshing, queue this request
         return new Promise((resolve, reject) => {

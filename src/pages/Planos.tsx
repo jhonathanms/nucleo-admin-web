@@ -22,26 +22,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import planoService from "@/services/plano.service";
 import produtoService from "@/services/produto.service";
-import {
-  Plano,
-  CreatePlanoDTO,
-  TipoCobranca,
-  UpdatePlanoDTO,
-  ApiError,
-} from "@/types";
-import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { Plano, CreatePlanoDTO, TipoCobranca, UpdatePlanoDTO } from "@/types";
 import { Produto } from "@/types/produto.types";
+import { useApiError } from "@/hooks/use-api-error";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Calculator, Copy, CreditCard, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 export default function Planos() {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const produtoIdParam = queryParams.get("produtoId");
+
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null);
-  const [apiError, setApiError] = useState<ApiError | null>(null);
   const { toast } = useToast();
+  const { apiError, handleError, clearError } = useApiError();
 
   // Local state for form fields
   const [formData, setFormData] = useState<Partial<Plano>>({
@@ -61,13 +62,32 @@ export default function Planos() {
   // Helper state for comma-separated resources input
   const [recursosInput, setRecursosInput] = useState("");
 
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [planosRes, produtosRes] = await Promise.all([
-        planoService.getAll({ size: 100 }),
-        produtoService.getAll({ size: 100 }),
-      ]);
+      let planosRes;
+      if (produtoIdParam) {
+        planosRes = await planoService.getByProduto(produtoIdParam, {
+          size: 100,
+        });
+      } else {
+        planosRes = await planoService.getAll({ size: 100 });
+      }
+
+      const produtosRes = await produtoService.getAll({ size: 100 });
+
       setPlanos(planosRes.content);
       setProdutos(produtosRes.content);
     } catch (error) {
@@ -80,7 +100,7 @@ export default function Planos() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [produtoIdParam, toast]);
 
   useEffect(() => {
     loadData();
@@ -114,7 +134,7 @@ export default function Planos() {
         .reduce((acc, r) => acc + r.valor, 0);
     }
 
-    if (total !== formData.valor && formData.tipoCobranca !== ("FIXO" as any)) {
+    if (total !== formData.valor) {
       setFormData((prev) => ({ ...prev, valor: total }));
     }
   }, [
@@ -166,7 +186,7 @@ export default function Planos() {
       });
       setRecursosInput("");
     }
-    setApiError(null);
+    clearError();
     setModalAberto(true);
   };
 
@@ -207,40 +227,32 @@ export default function Planos() {
         await planoService.create(createData as CreatePlanoDTO);
         toast({ title: "Sucesso", description: "Plano criado com sucesso." });
       }
-
       setModalAberto(false);
       loadData();
-    } catch (error: any) {
-      console.error("Erro ao salvar plano:", error);
-      const backendError = error.response?.data as ApiError;
-      setApiError(backendError);
-
-      toast({
-        title: "Erro",
-        description:
-          backendError?.message || "Não foi possível salvar o plano.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      handleError(error, "Não foi possível salvar o plano.");
     }
   };
 
-  const handleDelete = async (plano: Plano) => {
-    if (!confirm(`Tem certeza que deseja excluir ${plano.nome}?`)) return;
-
-    try {
-      await planoService.delete(plano.id);
-      toast({ title: "Sucesso", description: "Plano excluído com sucesso." });
-      loadData();
-    } catch (error: any) {
-      console.error("Erro ao excluir plano:", error);
-      const backendError = error.response?.data as ApiError;
-      toast({
-        title: "Erro",
-        description:
-          backendError?.message || "Não foi possível excluir o plano.",
-        variant: "destructive",
-      });
-    }
+  const handleDelete = (plano: Plano) => {
+    setConfirmModal({
+      open: true,
+      title: "Excluir Plano",
+      description: `Tem certeza que deseja excluir o plano "${plano.nome}"? Esta ação não pode ser desfeita.`,
+      onConfirm: async () => {
+        try {
+          await planoService.delete(plano.id);
+          toast({
+            title: "Sucesso",
+            description: "Plano excluído com sucesso.",
+          });
+          loadData();
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        } catch (error) {
+          handleError(error, "Não foi possível excluir o plano.");
+        }
+      },
+    });
   };
 
   const handleDuplicar = async (plano: Plano) => {
@@ -260,15 +272,8 @@ export default function Planos() {
       await planoService.create(novoPlano);
       toast({ title: "Sucesso", description: "Plano duplicado com sucesso." });
       loadData();
-    } catch (error: any) {
-      console.error("Erro ao duplicar plano:", error);
-      const backendError = error.response?.data as ApiError;
-      toast({
-        title: "Erro",
-        description:
-          backendError?.message || "Não foi possível duplicar o plano.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      handleError(error, "Não foi possível duplicar o plano.");
     }
   };
 
@@ -299,6 +304,8 @@ export default function Planos() {
           <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
             {plano.tipoCobranca === "USUARIO"
               ? "Por Usuário"
+              : plano.tipoCobranca === "PACOTE_USUARIO"
+              ? "Por Pacote"
               : plano.tipoCobranca === "RECURSO"
               ? "Por Recurso"
               : "Valor Fixo"}
@@ -836,6 +843,15 @@ export default function Planos() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmModal.open}
+        onOpenChange={(open) => setConfirmModal((prev) => ({ ...prev, open }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        variant="destructive"
+      />
     </div>
   );
 }

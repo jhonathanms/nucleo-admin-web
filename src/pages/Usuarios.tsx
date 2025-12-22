@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { UserCircle, Plus, Shield } from "lucide-react";
 import usuarioService from "@/services/usuario.service";
 import clienteService from "@/services/cliente.service";
@@ -32,6 +33,10 @@ import {
 } from "@/types/usuario.types";
 import { UserRole } from "@/types/auth.types";
 import { Cliente } from "@/types/cliente.types";
+import { useApiError } from "@/hooks/use-api-error";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { TokenStorage } from "@/lib/token-storage";
+import authService from "@/services/auth.service";
 
 const perfilLabels: Record<
   UserRole,
@@ -60,12 +65,14 @@ const isOnline = (ultimoAcesso?: string) => {
 };
 
 export default function Usuarios() {
+  const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Reset Password State
   const [resetModalOpen, setResetModalOpen] = useState(false);
@@ -75,7 +82,12 @@ export default function Usuarios() {
     novaSenha: "",
   });
 
+  // Filtros
+  const [filtroPerfil, setFiltroPerfil] = useState<UserRole | "todos">("todos");
+  const [filtroCliente, setFiltroCliente] = useState<string>("todos");
+
   const { toast } = useToast();
+  const { apiError, handleError, clearError } = useApiError();
 
   const loadData = useCallback(async () => {
     try {
@@ -109,26 +121,30 @@ export default function Usuarios() {
   const openNewUserModal = () => {
     setUsuarioEditando(null);
     setFormData(INITIAL_FORM_DATA);
+    clearError();
     setModalAberto(true);
   };
 
   const openEditUserModal = (usuario: Usuario) => {
     setUsuarioEditando(usuario);
-    // Try to find if user is linked to a client (this info might be missing in current Usuario type,
-    // but we can try to infer or leave as 'none' if not available)
-    // For now, we leave as 'none' or we would need to fetch user details if the list doesn't have it.
     setFormData({
       nome: usuario.nome,
       email: usuario.email,
       role: usuario.role,
       clienteId: usuario.clienteId || "none",
-      senha: "", // Password not needed for edit
+      senha: "",
     });
+    clearError();
     setModalAberto(true);
   };
 
   const handleSalvar = async () => {
     try {
+      const currentUser = authService.getStoredUser();
+      const isEditingSelf = usuarioEditando?.id === currentUser?.id;
+      const emailChanged =
+        isEditingSelf && formData.email !== usuarioEditando?.email;
+
       const payload: any = {
         nome: formData.nome,
         email: formData.email,
@@ -140,27 +156,42 @@ export default function Usuarios() {
       }
 
       if (usuarioEditando) {
-        // Update
         await usuarioService.update(
           usuarioEditando.id,
           payload as UpdateUsuarioDTO
         );
+
+        if (emailChanged) {
+          setModalAberto(false);
+          setIsLoggingOut(true);
+
+          toast({
+            title: "E-mail alterado",
+            description:
+              "Por segurança, você será desconectado para validar o novo acesso.",
+            variant: "default",
+          });
+
+          setTimeout(async () => {
+            await authService.logout();
+            navigate("/login", { replace: true });
+          }, 3000);
+          return;
+        }
+
         toast({ title: "Usuário atualizado com sucesso" });
       } else {
-        // Create
-        payload.senha = formData.senha;
+        payload.senha = "Mudar@123"; // Senha padrão inicial
         await usuarioService.create(payload as CreateUsuarioDTO);
-        toast({ title: "Usuário criado com sucesso" });
+        toast({
+          title: "Usuário criado com sucesso",
+          description: "A senha inicial padrão é: Mudar@123",
+        });
       }
       setModalAberto(false);
       loadData();
     } catch (error) {
-      console.error("Erro ao salvar usuário:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar o usuário. Verifique os dados.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível salvar o usuário.");
     }
   };
 
@@ -175,12 +206,7 @@ export default function Usuarios() {
       });
       loadData();
     } catch (error) {
-      console.error("Erro ao alterar status:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível alterar o status do usuário.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível alterar o status do usuário.");
     }
   };
 
@@ -190,6 +216,7 @@ export default function Usuarios() {
       email: usuario.email,
       novaSenha: "",
     });
+    clearError();
     setResetModalOpen(true);
   };
 
@@ -204,21 +231,38 @@ export default function Usuarios() {
     }
 
     try {
+      const currentUser = authService.getStoredUser();
+      const isEditingSelf = resetPasswordData.id === currentUser?.id;
+
       await usuarioService.resetPassword(resetPasswordData.id, {
         novaSenha: resetPasswordData.novaSenha,
       });
+
+      if (isEditingSelf) {
+        setResetModalOpen(false);
+        setIsLoggingOut(true);
+
+        toast({
+          title: "Senha alterada",
+          description:
+            "Sua senha foi alterada com sucesso. Por segurança, você será desconectado.",
+          variant: "default",
+        });
+
+        setTimeout(async () => {
+          await authService.logout();
+          navigate("/login", { replace: true });
+        }, 3000);
+        return;
+      }
+
       toast({
         title: "Senha resetada",
         description: `A senha de ${resetPasswordData.email} foi alterada com sucesso.`,
       });
       setResetModalOpen(false);
     } catch (error) {
-      console.error("Erro ao resetar senha:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível resetar a senha.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível resetar a senha.");
     }
   };
 
@@ -273,9 +317,18 @@ export default function Usuarios() {
       header: "Cliente",
       cell: (usuario) => (
         <span className="text-sm">
-          {usuario.role === "CLIENTE"
-            ? usuario.clienteNome || "Não associado"
-            : "Interno"}
+          {usuario.role === "CLIENTE" && usuario.clienteId ? (
+            <Link
+              to={`/clientes?id=${usuario.clienteId}`}
+              className="text-primary hover:underline font-medium"
+            >
+              {usuario.clienteNome || "Cliente Desconhecido"}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">
+              {usuario.role === "CLIENTE" ? "Não associado" : "Interno"}
+            </span>
+          )}
         </span>
       ),
     },
@@ -311,7 +364,7 @@ export default function Usuarios() {
       onClick: openEditUserModal,
     },
     {
-      label: "Resetar senha",
+      label: "Alterar senha",
       onClick: openResetPasswordModal,
     },
     {
@@ -333,8 +386,55 @@ export default function Usuarios() {
         }}
       />
 
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="w-full md:w-48">
+          <Select
+            value={filtroPerfil}
+            onValueChange={(value) =>
+              setFiltroPerfil(value as UserRole | "todos")
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Filtrar por Perfil" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Perfis</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+              <SelectItem value="GERENTE">Gerente</SelectItem>
+              <SelectItem value="OPERADOR">Operador</SelectItem>
+              <SelectItem value="CLIENTE">Cliente</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="w-full md:w-64">
+          <Select
+            value={filtroCliente}
+            onValueChange={(value) => setFiltroCliente(value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Filtrar por Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Clientes</SelectItem>
+              {clientes.map((cliente) => (
+                <SelectItem key={cliente.id} value={cliente.id}>
+                  {cliente.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <DataTable
-        data={usuarios}
+        data={usuarios.filter((u) => {
+          const matchPerfil =
+            filtroPerfil === "todos" || u.role === filtroPerfil;
+          const matchCliente =
+            filtroCliente === "todos" || u.clienteId === filtroCliente;
+          return matchPerfil && matchCliente;
+        })}
         columns={columns}
         actions={actions}
         searchKey="nome"
@@ -354,6 +454,8 @@ export default function Usuarios() {
                 : "Cadastre um novo usuário no sistema"}
             </DialogDescription>
           </DialogHeader>
+
+          <ApiErrorAlert error={apiError} />
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -420,19 +522,6 @@ export default function Usuarios() {
                 </Select>
               </div>
             )}
-
-            {!usuarioEditando && (
-              <div className="space-y-2">
-                <Label htmlFor="senha">Senha Inicial</Label>
-                <Input
-                  id="senha"
-                  type="password"
-                  value={formData.senha}
-                  onChange={(e) => handleInputChange("senha", e.target.value)}
-                  placeholder="Senha para o primeiro acesso"
-                />
-              </div>
-            )}
           </div>
 
           <DialogFooter>
@@ -446,16 +535,33 @@ export default function Usuarios() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Reset de Senha */}
+      {/* Overlay de Logout */}
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-card border shadow-2xl">
+            <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+            <div className="text-center">
+              <h3 className="text-xl font-bold">Saindo...</h3>
+              <p className="text-sm text-muted-foreground">
+                Redirecionando para a tela de login
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Alterar Senha */}
       <Dialog open={resetModalOpen} onOpenChange={setResetModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Resetar Senha</DialogTitle>
+            <DialogTitle>Alterar Senha</DialogTitle>
             <DialogDescription>
               Defina uma nova senha para o usuário{" "}
               <strong>{resetPasswordData.email}</strong>.
             </DialogDescription>
           </DialogHeader>
+
+          <ApiErrorAlert error={apiError} />
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">

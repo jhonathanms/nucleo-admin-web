@@ -31,6 +31,7 @@ export interface User {
   role: UserRole;
   ativo: boolean;
   avatar?: string;
+  tema?: "light" | "dark" | "system";
   criadoEm: string;
   atualizadoEm: string;
 }

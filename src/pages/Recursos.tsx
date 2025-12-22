@@ -21,6 +21,9 @@ import {
   CreateRecursoDTO,
   UpdateRecursoDTO,
 } from "@/types/recurso.types";
+import { useApiError } from "@/hooks/use-api-error";
+import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function Recursos() {
   const [recursos, setRecursos] = useState<Recurso[]>([]);
@@ -28,6 +31,19 @@ export default function Recursos() {
   const [modalAberto, setModalAberto] = useState(false);
   const [recursoEditando, setRecursoEditando] = useState<Recurso | null>(null);
   const { toast } = useToast();
+  const { apiError, handleError, clearError } = useApiError();
+
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
 
   const [formData, setFormData] = useState<Partial<Recurso>>({
     nome: "",
@@ -75,6 +91,7 @@ export default function Recursos() {
         ativo: true,
       });
     }
+    clearError();
     setModalAberto(true);
   };
 
@@ -106,31 +123,29 @@ export default function Recursos() {
       setModalAberto(false);
       loadData();
     } catch (error) {
-      console.error("Erro ao salvar recurso:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar o recurso.",
-        variant: "destructive",
-      });
+      handleError(error, "Não foi possível salvar o recurso.");
     }
   };
 
-  const handleDelete = async (recurso: Recurso) => {
-    if (!confirm(`Tem certeza que deseja excluir o recurso ${recurso.nome}?`))
-      return;
-
-    try {
-      await recursoService.delete(recurso.id);
-      toast({ title: "Sucesso", description: "Recurso excluído com sucesso." });
-      loadData();
-    } catch (error) {
-      console.error("Erro ao excluir recurso:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o recurso.",
-        variant: "destructive",
-      });
-    }
+  const handleDelete = (recurso: Recurso) => {
+    setConfirmModal({
+      open: true,
+      title: "Excluir Recurso",
+      description: `Tem certeza que deseja excluir o recurso "${recurso.nome}"? Esta ação não pode ser desfeita.`,
+      onConfirm: async () => {
+        try {
+          await recursoService.delete(recurso.id);
+          toast({
+            title: "Sucesso",
+            description: "Recurso excluído com sucesso.",
+          });
+          loadData();
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        } catch (error) {
+          handleError(error, "Não foi possível excluir o recurso.");
+        }
+      },
+    });
   };
 
   const columns: Column<Recurso>[] = [
@@ -220,6 +235,8 @@ export default function Recursos() {
             </DialogDescription>
           </DialogHeader>
 
+          <ApiErrorAlert error={apiError} />
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="nome">Nome do Recurso</Label>
@@ -306,6 +323,15 @@ export default function Recursos() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmModal.open}
+        onOpenChange={(open) => setConfirmModal((prev) => ({ ...prev, open }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        variant="destructive"
+      />
     </div>
   );
 }

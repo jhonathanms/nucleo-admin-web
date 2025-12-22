@@ -32,6 +32,7 @@ import {
 } from "@/types/produto.types";
 import { useApiError } from "@/hooks/use-api-error";
 import { ApiErrorAlert } from "@/components/ApiErrorAlert";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function Produtos() {
   const navigate = useNavigate();
@@ -41,6 +42,18 @@ export default function Produtos() {
   const [produtoEditando, setProdutoEditando] = useState<Produto | null>(null);
   const { toast } = useToast();
   const { apiError, handleError, clearError } = useApiError();
+
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
 
   const [formData, setFormData] = useState<Partial<Produto>>({
     tipo: "WEB",
@@ -137,16 +150,25 @@ export default function Produtos() {
     }
   };
 
-  const handleDelete = async (produto: Produto) => {
-    if (!confirm(`Tem certeza que deseja excluir ${produto.nome}?`)) return;
-
-    try {
-      await produtoService.delete(produto.id);
-      toast({ title: "Sucesso", description: "Produto excluído com sucesso." });
-      loadProdutos();
-    } catch (error) {
-      handleError(error, "Não foi possível excluir o produto.");
-    }
+  const handleDelete = (produto: Produto) => {
+    setConfirmModal({
+      open: true,
+      title: "Excluir Produto",
+      description: `Tem certeza que deseja excluir o produto "${produto.nome}"? Esta ação não pode ser desfeita.`,
+      onConfirm: async () => {
+        try {
+          await produtoService.delete(produto.id);
+          toast({
+            title: "Sucesso",
+            description: "Produto excluído com sucesso.",
+          });
+          loadProdutos();
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        } catch (error) {
+          handleError(error, "Não foi possível excluir o produto.");
+        }
+      },
+    });
   };
 
   const columns: Column<Produto>[] = [
@@ -373,6 +395,15 @@ export default function Produtos() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmModal.open}
+        onOpenChange={(open) => setConfirmModal((prev) => ({ ...prev, open }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        variant="destructive"
+      />
     </div>
   );
 }
