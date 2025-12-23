@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
 import authService from "@/services/auth.service";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
@@ -1622,7 +1623,7 @@ export default function Financeiro() {
 
       {/* Modal de Envio de E-mail */}
       <Dialog open={modalEmailAberto} onOpenChange={setModalEmailAberto}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-primary" /> Enviar Cobrança por
@@ -1672,12 +1673,12 @@ export default function Financeiro() {
             </div>
             <div className="space-y-2">
               <Label>Mensagem</Label>
-              <Textarea
-                className="h-32"
+              <EmailTemplateEditor
                 value={emailData.mensagem}
-                onChange={(e) =>
-                  setEmailData({ ...emailData, mensagem: e.target.value })
+                onChange={(value) =>
+                  setEmailData({ ...emailData, mensagem: value })
                 }
+                tipo={selectedTitulo?.status === "PAGO" ? "BOLETO" : "COBRANCA"}
               />
             </div>
             <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-lg">

@@ -123,11 +123,11 @@ export function AppLayout() {
       <AppHeader sidebarCollapsed={sidebarCollapsed} />
       <main
         className={cn(
-          "min-h-screen pt-16 transition-all duration-300",
-          sidebarCollapsed ? "pl-16" : "pl-64"
+          "min-h-screen pt-28 transition-all duration-300 ease-in-out",
+          sidebarCollapsed ? "pl-28" : "pl-80"
         )}
       >
-        <div className="p-6 animate-fade-in">
+        <div className="p-8 animate-fade-in max-w-[1600px] mx-auto">
           <Outlet />
         </div>
       </main>

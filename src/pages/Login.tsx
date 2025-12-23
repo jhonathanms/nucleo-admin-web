@@ -343,32 +343,42 @@ export default function Login() {
 
       {/* Footer */}
       <footer className="relative py-4 px-8 bg-black/20 backdrop-blur-sm border-t border-white/10 z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="text-center md:text-left">
-            <p className="text-white/90 text-xs font-medium">
-              Jhonathan Martins
-            </p>
-            <p className="text-white/60 text-[10px]">Engenheiro de Software</p>
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-center gap-3 md:gap-6">
+            <div className="text-center md:text-left">
+              <p className="text-white/90 text-xs font-medium">
+                Jhonathan Martins
+              </p>
+              <p className="text-white/60 text-[10px]">
+                Engenheiro de Software
+              </p>
+            </div>
+
+            <div className="hidden md:block w-px h-6 bg-white/10" />
+
+            <div className="flex items-center gap-4">
+              <a
+                href="https://www.linkedin.com/in/jhonathan-martins-5b1237143/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/60 hover:text-blue-400 transition-all transform hover:scale-110"
+                title="LinkedIn"
+              >
+                <Linkedin className="h-4 w-4" />
+              </a>
+              <a
+                href="https://www.instagram.com/jhonathan.martiins?igsh=MXdtczBudjByem02OA=="
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/60 hover:text-pink-400 transition-all transform hover:scale-110"
+                title="Instagram"
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <a
-              href="https://linkedin.com/in/jhonathanms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/60 hover:text-blue-400 transition-colors"
-            >
-              <Linkedin className="h-4 w-4" />
-            </a>
-            <a
-              href="https://instagram.com/jhonathanms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/60 hover:text-pink-400 transition-colors"
-            >
-              <Instagram className="h-4 w-4" />
-            </a>
-          </div>
-          <p className="text-white/50 text-[10px]">
+
+          <p className="text-white/50 text-[10px] tracking-wider">
             © 2015-2025. Todos os direitos reservados.
           </p>
         </div>

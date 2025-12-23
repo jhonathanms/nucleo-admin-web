@@ -1,73 +1,113 @@
-# Welcome to your Lovable project
+# 🚀 Núcleo Admin - Sistema de Gestão SaaS
 
-## Project info
+Bem-vindo ao **Núcleo Admin**! Este é um sistema moderno de gestão de licenças e administração para plataformas SaaS. Ele foi construído com foco em performance, usabilidade e um design premium.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+---
 
-## How can I edit this code?
+## 📋 Sobre o Projeto
 
-There are several ways of editing your application.
+O Núcleo Admin permite centralizar o controle de clientes, produtos, planos e licenças. Além disso, possui um módulo financeiro completo para gestão de cobranças e um sistema de auditoria para rastrear todas as ações importantes no sistema.
 
-**Use Lovable**
+### Principais Funcionalidades:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- **Dashboard**: Visão geral de métricas e estatísticas.
+- **Gestão de Clientes**: Cadastro e monitoramento de empresas/clientes.
+- **Produtos e Planos**: Configuração de produtos SaaS e seus respectivos planos de assinatura.
+- **Licenciamento**: Controle total sobre a expiração e status das licenças.
+- **Financeiro**: Emissão de cobranças, registro de pagamentos e exportação de relatórios (CSV/PDF).
+- **Editor de E-mail**: Editor de rich text (Visual e HTML) para personalizar mensagens de cobrança.
+- **Auditoria**: Log detalhado de atividades para segurança e conformidade.
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## 🛠️ Tecnologias Utilizadas
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Este projeto utiliza o que há de mais moderno no ecossistema Frontend:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **[React](https://reactjs.org/)**: Biblioteca principal para a interface.
+- **[Vite](https://vitejs.dev/)**: Ferramenta de build ultra-rápida.
+- **[TypeScript](https://www.typescriptlang.org/)**: Tipagem estática para evitar erros e melhorar o desenvolvimento.
+- **[Tailwind CSS](https://tailwindcss.com/)**: Estilização baseada em utilitários.
+- **[Shadcn/UI](https://ui.shadcn.com/)**: Componentes de interface acessíveis e elegantes.
+- **[Lucide React](https://lucide.dev/)**: Biblioteca de ícones modernos.
+- **[Axios](https://axios-http.com/)**: Cliente HTTP para comunicação com a API.
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🚀 Como Começar (Localmente)
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Siga estes passos para rodar o projeto na sua máquina:
 
-# Step 3: Install the necessary dependencies.
-npm i
+### 1. Pré-requisitos
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Certifique-se de ter o **Node.js** (versão 18 ou superior) e o **npm** instalados.
+
+### 2. Instalação
+
+Clone o repositório e instale as dependências:
+
+```bash
+# Instalar dependências
+npm install
+```
+
+### 3. Configuração
+
+Crie um arquivo `.env` na raiz do projeto (ou edite o existente) com as seguintes variáveis:
+
+```env
+VITE_API_BASE_URL=http://localhost:8680/api
+VITE_API_TIMEOUT=30000
+VITE_TAG_PRODUTO=APP_NUCLEO_ADMIN
+```
+
+### 4. Execução
+
+Inicie o servidor de desenvolvimento:
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Acesse `http://localhost:5173` no seu navegador.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 🐳 Rodando com Docker
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Se você prefere usar Docker para facilitar o deploy ou o desenvolvimento:
 
-## What technologies are used for this project?
+### Usando Docker Compose (Recomendado)
 
-This project is built with:
+```bash
+# Construir e subir o container
+docker-compose up -d --build
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+A aplicação estará disponível em `http://localhost:8080`.
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## 📂 Estrutura de Pastas
 
-## Can I connect a custom domain to my Lovable project?
+Para te ajudar a se localizar no projeto:
 
-Yes, you can!
+- `src/components`: Componentes reutilizáveis (botões, inputs, modais).
+- `src/pages`: As telas principais do sistema (Login, Dashboard, Financeiro, etc).
+- `src/services`: Arquivos que fazem as chamadas para a API (Backend).
+- `src/types`: Definições de tipos TypeScript (Interfaces e DTOs).
+- `src/hooks`: Hooks customizados do React.
+- `src/lib`: Configurações de bibliotecas externas (como o Axios).
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+---
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 📝 Dicas para Devs Junior
+
+- **Componentes**: Antes de criar um componente novo, veja se ele já não existe em `src/components/ui`.
+- **Estilização**: Use as classes do Tailwind diretamente no JSX. Se precisar de algo muito específico, use o arquivo `index.css`.
+- **API**: Todas as chamadas para o backend devem passar pelos arquivos em `src/services`.
+- **Tipagem**: Sempre defina os tipos para as props e retornos de funções para manter o código seguro.
+
+---
+
+Desenvolvido com ❤️ por **Jhonathan Martins**.

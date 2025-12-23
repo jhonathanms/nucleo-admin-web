@@ -168,8 +168,8 @@ export function AppHeader({ sidebarCollapsed }: AppHeaderProps) {
 
   return (
     <header
-      className="fixed top-0 right-0 z-30 h-16 border-b border-border bg-card/80 backdrop-blur-sm transition-all duration-300"
-      style={{ left: sidebarCollapsed ? "4rem" : "16rem" }}
+      className="fixed top-4 right-4 z-30 h-16 transition-all duration-300 ease-in-out bg-sidebar/80 backdrop-blur-xl border border-sidebar-border/50 shadow-lg rounded-2xl"
+      style={{ left: sidebarCollapsed ? "7rem" : "20rem" }}
     >
       <div className="flex h-full items-center justify-between px-6">
         {/* Global Search */}
@@ -216,8 +216,8 @@ export function AppHeader({ sidebarCollapsed }: AppHeaderProps) {
           {/* Notifications Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="relative text-primary-foreground hover:text-primary hover:bg-primary/10">
+                <Bell className="h-5 w-5 " />
                 {unreadCount > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground animate-pulse">
                     {unreadCount}
