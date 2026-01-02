@@ -39,7 +39,7 @@ O sistema é dividido nos seguintes módulos principais:
 
 ### Usuário (`Usuario`)
 
-- `id`, `nome`, `email`, `role` (ADMIN, GERENTE, OPERADOR, CLIENTE), `ativo`, `clienteId` (opcional), `licencaId` (opcional).
+- `id`, `nome`, `email`, `role` (ADMIN, OPERADOR, CLIENTE), `ativo`, `clienteId` (opcional), `licencaId` (opcional).
 
 ## 4. Detalhes do Frontend
 
@@ -94,3 +94,22 @@ Cada serviço (ex: `ClienteService`) segue o padrão:
 ---
 
 _Este documento deve ser atualizado sempre que houver mudanças estruturais significativas no projeto._
+
+## 7. Atualizações Recentes (Janeiro 2026)
+
+### Módulo de Licenças e Dispositivos
+
+- **Controle por Dispositivo**: Implementação completa do fluxo de licenças com cobrança e controle por dispositivo (`tipoCobranca: "POR_DISPOSITIVO"`).
+- **Gestão de Dispositivos**: Interface para visualizar, bloquear, desbloquear e remover dispositivos vinculados a uma licença.
+- **Ícones Inteligentes**: A tabela de licenças agora exibe ícones (Monitor, Tablet, Smartphone) baseados no tipo de produto.
+- **Usuário Principal**: Correção no vínculo de usuário principal para validação de dispositivos.
+
+### Módulo de Usuários
+
+- **Simplificação de Perfis**: Remoção do perfil `GERENTE`. O sistema agora opera com `ADMIN` (Administrador) e `OPERADOR` (Usuário).
+- **Revogação de Sessão**: Atualização do endpoint de logout forçado para `/auth/revogar-sessoes/{id}`.
+- **Segurança**: Melhorias no feedback visual ao alterar e-mail de usuários, alertando sobre desconexão.
+
+### Módulo de Planos
+
+- **Correções**: Ajuste no carregamento de limites de dispositivos na edição de planos.
