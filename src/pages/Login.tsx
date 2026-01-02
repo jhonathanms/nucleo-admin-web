@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import authService from "@/services/auth.service";
 import { useApiError } from "@/hooks/use-api-error";
-import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 import {
   Dialog,
   DialogContent,
@@ -166,9 +165,7 @@ export default function Login() {
 
             {/* Error Alert */}
             {apiError && (
-              <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                <ApiErrorAlert error={apiError} />
-              </div>
+              <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300"></div>
             )}
 
             {/* Form Card */}

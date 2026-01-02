@@ -25,7 +25,6 @@ import produtoService from "@/services/produto.service";
 import { Plano, CreatePlanoDTO, TipoCobranca, UpdatePlanoDTO } from "@/types";
 import { Produto } from "@/types/produto.types";
 import { useApiError } from "@/hooks/use-api-error";
-import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Calculator, Copy, CreditCard, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -132,10 +131,18 @@ export default function Planos() {
       total = (formData.recursosDetalhados || [])
         .filter((r) => r.ativo)
         .reduce((acc, r) => acc + r.valor, 0);
+    } else if (formData.tipoCobranca === "POR_DISPOSITIVO") {
+      const base = formData.valorBase || 0;
+      const porDispositivo = formData.valorPorUsuario || 0; // Reutilizando campo para valor por dispositivo
+      const qtd = formData.limiteDispositivos || 0;
+      total = base + porDispositivo * qtd;
     }
 
-    if (total !== formData.valor) {
-      setFormData((prev) => ({ ...prev, valor: total }));
+    if (Math.abs(total - (formData.valor || 0)) > 0.001) {
+      setFormData((prev) => ({
+        ...prev,
+        valor: Math.round(total * 100) / 100,
+      }));
     }
   }, [
     formData.tipoCobranca,
@@ -145,6 +152,7 @@ export default function Planos() {
     formData.quantidadePacotes,
     formData.usuariosPorPacote,
     formData.recursosDetalhados,
+    formData.limiteDispositivos,
     formData.valor,
   ]);
 
@@ -162,6 +170,7 @@ export default function Planos() {
         quantidadePacotes: plano.quantidadePacotes || 1,
         usuariosPorPacote: plano.usuariosPorPacote || 10,
         limiteUsuarios: plano.limiteUsuarios,
+        limiteDispositivos: plano.limiteDispositivos,
         trial: plano.trial,
         diasTrial: plano.diasTrial,
         ativo: plano.ativo,
@@ -308,6 +317,8 @@ export default function Planos() {
               ? "Por Pacote"
               : plano.tipoCobranca === "RECURSO"
               ? "Por Recurso"
+              : plano.tipoCobranca === "POR_DISPOSITIVO"
+              ? "Por Dispositivo"
               : "Valor Fixo"}
           </p>
         </div>
@@ -317,11 +328,18 @@ export default function Planos() {
       key: "limiteUsuarios",
       header: "Usuários",
       cell: (plano) => (
-        <span className="text-sm">
-          {plano.limiteUsuarios
-            ? `${plano.limiteUsuarios} usuários`
-            : "Ilimitado"}
-        </span>
+        <div className="flex flex-col">
+          <span className="text-sm">
+            {plano.limiteUsuarios
+              ? `${plano.limiteUsuarios} usuários`
+              : "Ilimitado"}
+          </span>
+          {plano.limiteDispositivos && (
+            <span className="text-[10px] text-muted-foreground">
+              {plano.limiteDispositivos} dispositivos
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -386,8 +404,6 @@ export default function Planos() {
             </DialogDescription>
           </DialogHeader>
 
-          <ApiErrorAlert error={apiError} />
-
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="produto">Produto</Label>
@@ -440,7 +456,12 @@ export default function Planos() {
                 <Select
                   value={formData.tipoCobranca}
                   onValueChange={(value: TipoCobranca) =>
-                    setFormData({ ...formData, tipoCobranca: value })
+                    setFormData({
+                      ...formData,
+                      tipoCobranca: value,
+                      valorBase:
+                        value === "POR_DISPOSITIVO" ? 0 : formData.valorBase,
+                    })
                   }
                 >
                   <SelectTrigger>
@@ -453,6 +474,9 @@ export default function Planos() {
                       Por Pacote de Usuários
                     </SelectItem>
                     <SelectItem value="RECURSO">Por Recurso</SelectItem>
+                    <SelectItem value="POR_DISPOSITIVO">
+                      Por Dispositivo
+                    </SelectItem>
 
                     {/* Desabilitado temporariamente!! <SelectItem value="VOLUME">Por Volume</SelectItem> */}
                   </SelectContent>
@@ -601,6 +625,41 @@ export default function Planos() {
                   </div>
                 )}
 
+                {formData.tipoCobranca === "POR_DISPOSITIVO" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Por Dispositivo</Label>
+                      <Input
+                        type="number"
+                        value={formData.valorPorUsuario || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            valorPorUsuario: parseFloat(e.target.value),
+                          })
+                        }
+                        placeholder="0.00"
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Qtd. Dispositivos</Label>
+                      <Input
+                        type="number"
+                        value={formData.limiteDispositivos || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            limiteDispositivos: parseInt(e.target.value),
+                          })
+                        }
+                        placeholder="0"
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {formData.tipoCobranca === "RECURSO" && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -743,12 +802,28 @@ export default function Planos() {
                             valorBase: total / qtd,
                           });
                         } else if (formData.tipoCobranca === "USUARIO") {
-                          const porUsuario = formData.valorPorUsuario || 0;
+                          const base = formData.valorBase || 0;
                           const qtd = formData.limiteUsuarios || 0;
+                          const novoValorPorUsuario =
+                            qtd > 0 ? (total - base) / qtd : 0;
                           setFormData({
                             ...formData,
                             valor: total,
-                            valorBase: total - porUsuario * qtd,
+                            valorPorUsuario:
+                              Math.round(novoValorPorUsuario * 100) / 100,
+                          });
+                        } else if (
+                          formData.tipoCobranca === "POR_DISPOSITIVO"
+                        ) {
+                          const base = formData.valorBase || 0;
+                          const qtd = formData.limiteDispositivos || 0;
+                          const novoValorPorDisp =
+                            qtd > 0 ? (total - base) / qtd : 0;
+                          setFormData({
+                            ...formData,
+                            valor: total,
+                            valorPorUsuario:
+                              Math.round(novoValorPorDisp * 100) / 100,
                           });
                         } else {
                           setFormData({ ...formData, valor: total });

@@ -21,6 +21,7 @@ import {
   Building2,
   LogOut,
 } from "lucide-react";
+import { UserAvatar } from "./UserAvatar";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -76,7 +77,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           {!collapsed ? (
             <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-500">
               <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                <div className="absolute -inset-1 rounded-lg"></div>
                 <img
                   src="/logo.png"
                   alt="Nucleo Admin"
@@ -159,9 +160,12 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               className={cn("flex items-center gap-3", collapsed && "flex-col")}
             >
               <div className="relative">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/10">
-                  <UserCircle className="h-6 w-6 text-primary" />
-                </div>
+                <UserAvatar
+                  userId={user?.id || ""}
+                  userName={user?.nome || "Usuário"}
+                  className="h-10 w-10 rounded-xl border border-primary/10"
+                  fallbackClassName="text-lg"
+                />
                 <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-sidebar bg-success" />
               </div>
 

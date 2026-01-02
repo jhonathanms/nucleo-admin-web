@@ -16,7 +16,9 @@ export interface TituloFinanceiro {
   id: string;
   numero: string;
   licencaId: string;
+  clienteId: string;
   clienteNome: string;
+  clienteCodigoCrm: string;
   descricao: string;
   valor: number;
   dataVencimento: string;

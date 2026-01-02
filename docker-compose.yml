@@ -4,16 +4,17 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8680/api}
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://nucleo-admin-api:8680/api}
         - VITE_API_TIMEOUT=${VITE_API_TIMEOUT:-30000}
         - VITE_TAG_PRODUTO=${VITE_TAG_PRODUTO:-APP_NUCLEO_ADMIN}
     container_name: nucleo-admin-web
     ports:
-      - "8080:80"
+      - "8681:80"
     restart: unless-stopped
     networks:
-      - nucleo-network
+      - rede_local
 
 networks:
-  nucleo-network:
-    driver: bridge
+  rede_local:
+    external: true
+    

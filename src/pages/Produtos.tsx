@@ -31,8 +31,9 @@ import {
   ProdutoTipo,
 } from "@/types/produto.types";
 import { useApiError } from "@/hooks/use-api-error";
-import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { LogoUpload } from "@/components/LogoUpload";
+import { ProdutoLogo } from "@/components/ProdutoLogo";
 
 export default function Produtos() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ export default function Produtos() {
   const [isLoading, setIsLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [produtoEditando, setProdutoEditando] = useState<Produto | null>(null);
+  const [logoRefreshKey, setLogoRefreshKey] = useState(0);
   const { toast } = useToast();
   const { apiError, handleError, clearError } = useApiError();
 
@@ -176,9 +178,17 @@ export default function Produtos() {
       key: "nome",
       header: "Produto",
       cell: (produto) => (
-        <div>
-          <p className="font-medium">{produto.nome}</p>
-          <p className="text-xs text-muted-foreground">{produto.descricao}</p>
+        <div className="flex items-center gap-3">
+          <ProdutoLogo
+            produtoId={produto.id}
+            produtoNome={produto.nome}
+            className="h-10 w-10"
+            refreshKey={logoRefreshKey}
+          />
+          <div>
+            <p className="font-medium">{produto.nome}</p>
+            <p className="text-xs text-muted-foreground">{produto.descricao}</p>
+          </div>
         </div>
       ),
     },
@@ -261,9 +271,24 @@ export default function Produtos() {
             </DialogDescription>
           </DialogHeader>
 
-          <ApiErrorAlert error={apiError} />
-
           <div className="space-y-4 py-4">
+            {produtoEditando && (
+              <div className="flex flex-col items-center justify-center pb-2">
+                <Label className="mb-2 self-start">Logo do Produto</Label>
+                <LogoUpload
+                  produtoId={produtoEditando.id}
+                  produtoNome={produtoEditando.nome}
+                  onUploadSuccess={() => {
+                    loadProdutos();
+                    setLogoRefreshKey((prev) => prev + 1);
+                  }}
+                  onDeleteSuccess={() => {
+                    loadProdutos();
+                    setLogoRefreshKey((prev) => prev + 1);
+                  }}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="tipo">Tipo</Label>
               <Select

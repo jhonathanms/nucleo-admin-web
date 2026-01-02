@@ -31,7 +31,7 @@ export interface Column<T> {
 }
 
 export interface Action<T> {
-  label: string;
+  label: string | ((item: T) => string);
   onClick: (item: T) => void;
   variant?: "default" | "destructive";
   icon?: React.ElementType;
@@ -43,7 +43,7 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   actions?: Action<T>[];
   searchPlaceholder?: string;
-  searchKey?: keyof T;
+  searchKey?: keyof T | (keyof T)[];
   emptyMessage?: string;
   className?: string;
   itemsPerPage?: number;
@@ -63,9 +63,14 @@ export function DataTable<T extends { id: string | number }>({
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredData = searchKey
-    ? data.filter((item) =>
-        String(item[searchKey]).toLowerCase().includes(search.toLowerCase())
-      )
+    ? data.filter((item) => {
+        const searchTerms = Array.isArray(searchKey) ? searchKey : [searchKey];
+        return searchTerms.some((key) =>
+          String(item[key] || "")
+            .toLowerCase()
+            .includes(search.toLowerCase())
+        );
+      })
     : data;
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -80,6 +85,8 @@ export function DataTable<T extends { id: string | number }>({
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            name="dt_search_input"
+            id="dt_search_input"
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => {
@@ -87,6 +94,7 @@ export function DataTable<T extends { id: string | number }>({
               setCurrentPage(1);
             }}
             className="pl-9"
+            autoComplete="off"
           />
         </div>
       )}
@@ -156,7 +164,9 @@ export function DataTable<T extends { id: string | number }>({
                                 {action.icon && (
                                   <action.icon className="mr-2 h-4 w-4" />
                                 )}
-                                {action.label}
+                                {typeof action.label === "function"
+                                  ? action.label(item)
+                                  : action.label}
                               </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>

@@ -70,6 +70,20 @@ export function ApiErrorAlert({ error, className }: ApiErrorAlertProps) {
   const config = getStatusConfig(error.status);
   const Icon = config.icon;
 
+  const translateMessage = (msg: string) => {
+    const translations: Record<string, string> = {
+      "Validation failed": "Falha na validação dos dados",
+      "Access denied": "Acesso negado",
+      "Internal server error": "Erro interno do servidor",
+      "Resource not found": "Recurso não encontrado",
+      "Invalid credentials": "Credenciais inválidas",
+      "User already exists": "Usuário já cadastrado",
+      "Email already in use": "E-mail já está em uso",
+    };
+
+    return translations[msg] || msg;
+  };
+
   return (
     <Alert
       className={cn(
@@ -83,7 +97,7 @@ export function ApiErrorAlert({ error, className }: ApiErrorAlertProps) {
         {config.title}
       </AlertTitle>
       <AlertDescription className="space-y-2">
-        <p className="text-sm font-medium">{error.message}</p>
+        <p className="text-sm font-medium">{translateMessage(error.message)}</p>
 
         {error.errors && Object.keys(error.errors).length > 0 && (
           <div className="mt-2 rounded-md bg-background/50 p-2 border border-current/10">

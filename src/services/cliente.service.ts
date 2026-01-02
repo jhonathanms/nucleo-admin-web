@@ -6,6 +6,7 @@ import {
   UpdateClienteDTO,
   ClienteListResponse,
 } from "@/types/cliente.types";
+import { Usuario } from "@/types/usuario.types";
 
 class ClienteService {
   private readonly baseURL = "/clientes";
@@ -80,6 +81,14 @@ class ClienteService {
         params,
       }
     );
+    return response.data;
+  }
+
+  /**
+   * Get users linked to a client
+   */
+  async getUsuarios(id: string): Promise<Usuario[]> {
+    const response = await api.get<Usuario[]>(`${this.baseURL}/${id}/usuarios`);
     return response.data;
   }
 

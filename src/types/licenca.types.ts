@@ -5,6 +5,7 @@ export interface Licenca {
   chave: string;
   clienteId: string;
   clienteNome: string;
+  clienteCodigoCrm: string;
   produtoId: string;
   produtoNome: string;
   planoId: string;
@@ -14,7 +15,13 @@ export interface Licenca {
   dataExpiracao: string;
   limiteUsuarios: number | null;
   usuariosAtivos: number;
+  limiteDispositivos: number | null;
+  dispositivosAtivos: number;
+  tipoControle: "USUARIO" | "DISPOSITIVO";
+  tipoCobranca?: string;
   tagProduto: string;
+  usuarioPrincipalId?: string | null;
+  usuarioPrincipalNome?: string | null;
   metadata?: Record<string, any>;
   criadoEm: string;
   atualizadoEm: string;
@@ -27,6 +34,9 @@ export interface CreateLicencaDTO {
   dataInicio: string;
   dataExpiracao: string;
   limiteUsuarios?: number | null;
+  limiteDispositivos?: number | null;
+  tipoControle: "USUARIO" | "DISPOSITIVO";
+  usuarioPrincipalId?: string | null;
   metadata?: Record<string, any>;
 }
 
@@ -34,6 +44,8 @@ export interface UpdateLicencaDTO {
   status?: Status;
   dataExpiracao?: string;
   limiteUsuarios?: number | null;
+  limiteDispositivos?: number | null;
+  usuarioPrincipalId?: string | null;
   metadata?: Record<string, any>;
 }
 

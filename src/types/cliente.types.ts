@@ -2,6 +2,7 @@ import { PaginatedResponse, Status } from "./common.types";
 
 export interface Cliente {
   id: string;
+  codigoCrm: string;
   nome: string;
   documento: string;
   tipo: "PF" | "PJ";
@@ -26,6 +27,7 @@ export interface Endereco {
 }
 
 export interface CreateClienteDTO {
+  codigoCrm: string;
   nome: string;
   documento: string;
   tipo: "PF" | "PJ";
@@ -36,6 +38,7 @@ export interface CreateClienteDTO {
 }
 
 export interface UpdateClienteDTO {
+  codigoCrm?: string;
   nome?: string;
   email?: string;
   telefone?: string;

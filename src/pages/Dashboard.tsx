@@ -12,6 +12,7 @@ import {
 import { StatsCard } from "@/components/StatsCard";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ProdutoLogo } from "@/components/ProdutoLogo";
 import {
   Card,
   CardContent,
@@ -19,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   AreaChart,
@@ -445,12 +447,29 @@ function SectionList({
           items.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between rounded-md bg-muted/30 p-2 border border-border/50"
+              className="flex items-center justify-between rounded-md bg-muted/30 p-2 border border-border/50 gap-3"
             >
+              {type === "licenca" && (
+                <ProdutoLogo
+                  produtoId={item.produtoId}
+                  produtoNome={item.produtoNome}
+                  planoNome={item.planoNome}
+                  className="h-8 w-8 shrink-0"
+                  showTooltip
+                />
+              )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold truncate">
-                  {item.clienteNome}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-[9px] px-1 py-0 h-3.5 border-primary/30 text-primary shrink-0"
+                  >
+                    {item.clienteCodigoCrm}
+                  </Badge>
+                  <p className="text-xs font-semibold truncate">
+                    {item.clienteNome}
+                  </p>
+                </div>
                 <p className="text-[10px] text-muted-foreground truncate">
                   {type === "financeiro"
                     ? `Vencimento: ${new Date(

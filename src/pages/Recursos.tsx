@@ -22,7 +22,6 @@ import {
   UpdateRecursoDTO,
 } from "@/types/recurso.types";
 import { useApiError } from "@/hooks/use-api-error";
-import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function Recursos() {
@@ -234,8 +233,6 @@ export default function Recursos() {
               Cadastre módulos que poderão ser vinculados aos planos.
             </DialogDescription>
           </DialogHeader>
-
-          <ApiErrorAlert error={apiError} />
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">

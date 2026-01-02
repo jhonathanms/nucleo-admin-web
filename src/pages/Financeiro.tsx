@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import {
   DollarSign,
   Plus,
@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,7 +65,6 @@ import {
 } from "@/types/financeiro.types";
 import { Licenca } from "@/types/licenca.types";
 import { EmailTemplate } from "@/types/config.types";
-import { ApiErrorAlert } from "@/components/ApiErrorAlert";
 import { useApiError } from "@/hooks/use-api-error";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -649,11 +649,34 @@ export default function Financeiro() {
       ),
     },
     {
+      key: "clienteCodigoCrm",
+      header: "CRM",
+      cell: (titulo) => (
+        <Badge
+          variant="outline"
+          className="font-mono text-[10px] px-1.5 py-0 h-5 border-primary/30 text-primary bg-primary/5"
+        >
+          {titulo.clienteCodigoCrm}
+        </Badge>
+      ),
+      className: "w-[100px]",
+    },
+    {
       key: "clienteNome",
       header: "Cliente",
-      cell: (titulo) => (
-        <span className="font-medium">{titulo.clienteNome}</span>
-      ),
+      cell: (titulo) => {
+        const licenca = licencas.find((l) => l.id === titulo.licencaId);
+        const clienteId = titulo.clienteId || licenca?.clienteId;
+
+        return (
+          <Link
+            to={clienteId ? `/clientes?id=${clienteId}` : "#"}
+            className="font-medium hover:text-primary transition-colors"
+          >
+            {titulo.clienteNome}
+          </Link>
+        );
+      },
     },
     {
       key: "descricao",
@@ -1029,8 +1052,13 @@ export default function Financeiro() {
             data={titulos}
             columns={columns}
             actions={actions}
-            searchKey="clienteNome"
-            searchPlaceholder="Buscar por cliente..."
+            searchKey={[
+              "clienteNome",
+              "clienteCodigoCrm",
+              "numero",
+              "descricao",
+            ]}
+            searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
           />
         </TabsContent>
 
@@ -1039,8 +1067,13 @@ export default function Financeiro() {
             data={titulosFiltrados("PENDENTE")}
             columns={columns}
             actions={actions}
-            searchKey="clienteNome"
-            searchPlaceholder="Buscar por cliente..."
+            searchKey={[
+              "clienteNome",
+              "clienteCodigoCrm",
+              "numero",
+              "descricao",
+            ]}
+            searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
           />
         </TabsContent>
 
@@ -1049,8 +1082,13 @@ export default function Financeiro() {
             data={titulosFiltrados("PAGO")}
             columns={columns}
             actions={actions}
-            searchKey="clienteNome"
-            searchPlaceholder="Buscar por cliente..."
+            searchKey={[
+              "clienteNome",
+              "clienteCodigoCrm",
+              "numero",
+              "descricao",
+            ]}
+            searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
           />
         </TabsContent>
 
@@ -1087,8 +1125,6 @@ export default function Financeiro() {
             </DialogDescription>
           </DialogHeader>
 
-          <ApiErrorAlert error={apiError} className="px-6" />
-
           <div className="flex-1 overflow-y-auto p-6 pt-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Coluna da Esquerda: Dados Básicos */}
@@ -1123,6 +1159,9 @@ export default function Financeiro() {
                     <SelectContent>
                       {licencas.map((l) => (
                         <SelectItem key={l.id} value={l.id}>
+                          <span className="font-mono text-[10px] mr-2 opacity-70">
+                            [{l.clienteCodigoCrm}]
+                          </span>
                           {l.clienteNome} - {l.produtoNome}
                         </SelectItem>
                       ))}
@@ -1533,8 +1572,6 @@ export default function Financeiro() {
             </DialogDescription>
           </DialogHeader>
 
-          <ApiErrorAlert error={apiError} />
-
           <div className="space-y-4 py-4">
             <div className="bg-muted/50 p-3 rounded-lg flex justify-between items-center">
               <span className="text-sm">Valor a Receber:</span>
@@ -1633,8 +1670,6 @@ export default function Financeiro() {
               Configure os detalhes do envio para o cliente.
             </DialogDescription>
           </DialogHeader>
-
-          <ApiErrorAlert error={apiError} />
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">

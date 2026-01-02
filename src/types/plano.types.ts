@@ -19,6 +19,7 @@ export interface Plano {
   quantidadePacotes: number; // Quantidade de pacotes
   usuariosPorPacote: number; // Usuários por cada pacote
   limiteUsuarios: number | null;
+  limiteDispositivos: number | null;
   trial: boolean;
   diasTrial: number;
   recursos: string[];
@@ -33,7 +34,9 @@ export type TipoCobranca =
   | "RECURSO"
   | "FIXO"
   | "VOLUME"
-  | "PACOTE_USUARIO";
+  | "PACOTE_USUARIO"
+  | "POR_USUARIO"
+  | "POR_DISPOSITIVO";
 
 export interface CreatePlanoDTO {
   nome: string;
@@ -46,6 +49,7 @@ export interface CreatePlanoDTO {
   quantidadePacotes?: number;
   usuariosPorPacote?: number;
   limiteUsuarios?: number | null;
+  limiteDispositivos?: number | null;
   trial: boolean;
   diasTrial: number;
   recursos?: string[];
@@ -62,6 +66,7 @@ export interface UpdatePlanoDTO {
   quantidadePacotes?: number;
   usuariosPorPacote?: number;
   limiteUsuarios?: number | null;
+  limiteDispositivos?: number | null;
   trial?: boolean;
   diasTrial?: number;
   recursos?: string[];
