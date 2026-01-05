@@ -8,7 +8,7 @@ import { TokenStorage } from "@/lib/token-storage";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8680/api";
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || "30000");
-const TAG_PRODUTO = import.meta.env.VITE_TAG_PRODUTO || "NUCLEO_ADMIN";
+const TAG_PRODUTO = import.meta.env.VITE_TAG_PRODUTO || "APP_NUCLEO_ADMIN";
 
 // Flag to prevent multiple simultaneous refresh token requests
 let isRefreshing = false;

@@ -98,6 +98,9 @@ export default function Financeiro() {
     onConfirm: () => {},
   });
   const user = authService.getStoredUser();
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusTitulo>(
+    "todos"
+  );
   const isAdmin = user?.role === "ADMIN";
 
   const [formData, setFormData] = useState<Partial<CreateTituloDTO>>({
@@ -971,7 +974,7 @@ export default function Financeiro() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Financeiro"
         description="Controle de cobranças e títulos"
@@ -1011,7 +1014,7 @@ export default function Financeiro() {
       </PageHeader>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 shrink-0">
         <StatsCard
           title="A Receber"
           value={`R$ ${totalReceber.toLocaleString("pt-BR", {
@@ -1038,70 +1041,36 @@ export default function Financeiro() {
         />
       </div>
 
-      {/* Tabs com filtros */}
-      <Tabs defaultValue="todos" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="todos">Todos</TabsTrigger>
-          <TabsTrigger value="PENDENTE">Pendentes</TabsTrigger>
-          <TabsTrigger value="PAGO">Pagos</TabsTrigger>
-          <TabsTrigger value="EM_ATRASO">Em Atraso</TabsTrigger>
-        </TabsList>
+      {/* DataTable with integrated filter tabs */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex items-center justify-between gap-4 mb-4 shrink-0">
+          <Tabs
+            defaultValue="todos"
+            value={filtroStatus}
+            onValueChange={(value) => setFiltroStatus(value as any)}
+            className="w-auto"
+          >
+            <TabsList>
+              <TabsTrigger value="todos">Todos</TabsTrigger>
+              <TabsTrigger value="PENDENTE">Pendentes</TabsTrigger>
+              <TabsTrigger value="PAGO">Pagos</TabsTrigger>
+              <TabsTrigger value="EM_ATRASO">Em Atraso</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-        <TabsContent value="todos">
-          <DataTable
-            data={titulos}
-            columns={columns}
-            actions={actions}
-            searchKey={[
-              "clienteNome",
-              "clienteCodigoCrm",
-              "numero",
-              "descricao",
-            ]}
-            searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
-          />
-        </TabsContent>
-
-        <TabsContent value="PENDENTE">
-          <DataTable
-            data={titulosFiltrados("PENDENTE")}
-            columns={columns}
-            actions={actions}
-            searchKey={[
-              "clienteNome",
-              "clienteCodigoCrm",
-              "numero",
-              "descricao",
-            ]}
-            searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
-          />
-        </TabsContent>
-
-        <TabsContent value="PAGO">
-          <DataTable
-            data={titulosFiltrados("PAGO")}
-            columns={columns}
-            actions={actions}
-            searchKey={[
-              "clienteNome",
-              "clienteCodigoCrm",
-              "numero",
-              "descricao",
-            ]}
-            searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
-          />
-        </TabsContent>
-
-        <TabsContent value="EM_ATRASO">
-          <DataTable
-            data={titulosFiltrados("EM_ATRASO")}
-            columns={columns}
-            actions={actions}
-            searchKey="clienteNome"
-            searchPlaceholder="Buscar por cliente..."
-          />
-        </TabsContent>
-      </Tabs>
+        <DataTable
+          data={
+            filtroStatus === "todos"
+              ? titulos
+              : titulosFiltrados(filtroStatus as any)
+          }
+          columns={columns}
+          actions={actions}
+          searchKey={["clienteNome", "clienteCodigoCrm", "numero", "descricao"]}
+          searchPlaceholder="Buscar por cliente, CRM, número ou descrição..."
+        />
+      </div>
 
       <Dialog
         open={modalAberto}

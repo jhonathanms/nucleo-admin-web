@@ -22,6 +22,9 @@ import {
   LogOut,
 } from "lucide-react";
 import { UserAvatar } from "./UserAvatar";
+import clienteService from "@/services/cliente.service";
+import { Cliente } from "@/types/cliente.types";
+import { ClienteLogo } from "./ClienteLogo";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -45,13 +48,26 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [mainCliente, setMainCliente] = useState<Cliente | null>(null);
 
   useEffect(() => {
     const currentUser = authService.getStoredUser();
     if (currentUser) {
       setUser(currentUser);
     }
+    loadMainCliente();
   }, []);
+
+  const loadMainCliente = async () => {
+    try {
+      const response = await clienteService.getAll({ size: 1 });
+      if (response.content && response.content.length > 0) {
+        setMainCliente(response.content[0]);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar cliente principal:", error);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -86,10 +102,10 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               </div>
               <div className="flex flex-col">
                 <span className="text-lg font-bold tracking-tight text-sidebar-foreground leading-none">
-                  Núcleo
+                  Núcleo Admin
                 </span>
                 <span className="text-[10px] font-medium uppercase tracking-widest text-primary mt-1">
-                  Admin System
+                  Sistema de Gestão
                 </span>
               </div>
             </div>
@@ -103,7 +119,6 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             </div>
           )}
         </div>
-
         {/* Navigation */}
         <ScrollArea className="flex-1 px-4 py-2">
           <nav className="space-y-1.5">
@@ -160,12 +175,18 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               className={cn("flex items-center gap-3", collapsed && "flex-col")}
             >
               <div className="relative">
-                <UserAvatar
-                  userId={user?.id || ""}
-                  userName={user?.nome || "Usuário"}
-                  className="h-10 w-10 rounded-xl border border-primary/10"
-                  fallbackClassName="text-lg"
-                />
+                {user?.id ? (
+                  <UserAvatar
+                    userId={user.id}
+                    userName={user.nome || "Usuário"}
+                    className="h-10 w-10 rounded-xl border border-primary/10"
+                    fallbackClassName="text-lg"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-xl border border-primary/10 bg-primary/10 flex items-center justify-center">
+                    <UserCircle className="h-6 w-6 text-primary" />
+                  </div>
+                )}
                 <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-sidebar bg-success" />
               </div>
 

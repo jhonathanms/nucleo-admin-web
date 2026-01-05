@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { DataTable } from "@/components/DataTable";
+import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
 import { PageHeader } from "@/components/PageHeader";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ThemeSection } from "@/components/ThemeSection";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,33 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { configService } from "@/services/config.service";
-import { SmtpConfig, EmailTemplate } from "@/types/config.types";
-import {
-  Mail,
-  Settings,
-  FileText,
-  Plus,
-  Trash2,
-  Edit,
-  Save,
-  Send,
-  Palette,
-} from "lucide-react";
-import { DataTable } from "@/components/DataTable";
 import {
   Dialog,
   DialogContent,
@@ -43,8 +18,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ThemeSection } from "@/components/ThemeSection";
-import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { configService } from "@/services/config.service";
+import { EmailTemplate, SmtpConfig } from "@/types/config.types";
+import {
+  Edit,
+  FileText,
+  Mail,
+  Palette,
+  Plus,
+  Save,
+  Send,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function Configuracoes() {
   const { toast } = useToast();
@@ -221,14 +219,17 @@ export default function Configuracoes() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Configurações"
         description="Gerencie as configurações globais do sistema."
       />
 
-      <Tabs defaultValue="aparencia" className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+      <Tabs
+        defaultValue="aparencia"
+        className="size-full flex-1 flex flex-col"
+      >
+        <TabsList className="grid w-full max-w-2xl grid-cols-3 shrink-0">
           <TabsTrigger value="aparencia" className="flex items-center gap-2">
             <Palette className="h-4 w-4" /> Aparência
           </TabsTrigger>
@@ -240,23 +241,23 @@ export default function Configuracoes() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="aparencia" className="mt-6">
+        <TabsContent value="aparencia" className="mt-6 flex-1">
           <ThemeSection />
         </TabsContent>
 
-        <TabsContent value="smtp" className="mt-6">
-          <Card>
+        <TabsContent value="smtp" className="mt-6 !mb-6 flex-1 ">
+          <Card className="overflow-y-auto">
             <CardHeader>
               <CardTitle>Configuração de Servidor SMTP</CardTitle>
               <CardDescription>
-                Configure os detalhes do servidor de e-mail para envio de
-                notificações e cobranças.
+                Configure os dados do servidor de e-mail para envio de
+                notificações.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="host">Host SMTP</Label>
+                  <Label htmlFor="host">Servidor SMTP (Host)</Label>
                   <Input
                     id="host"
                     placeholder="smtp.exemplo.com"
@@ -268,19 +269,18 @@ export default function Configuracoes() {
                   <Label htmlFor="port">Porta</Label>
                   <Input
                     id="port"
-                    type="number"
                     placeholder="587"
                     value={smtp.port}
                     onChange={(e) =>
-                      setSmtp({ ...smtp, port: parseInt(e.target.value) })
+                      setSmtp({ ...smtp, port: parseInt(e.target.value) || 0 })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="user">Usuário / E-mail</Label>
+                  <Label htmlFor="user">Usuário</Label>
                   <Input
                     id="user"
-                    placeholder="contato@exemplo.com"
+                    placeholder="usuario@exemplo.com"
                     value={smtp.user}
                     onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
                   />
@@ -290,7 +290,7 @@ export default function Configuracoes() {
                   <Input
                     id="pass"
                     type="password"
-                    placeholder="******"
+                    placeholder="••••••••"
                     value={smtp.pass}
                     onChange={(e) => setSmtp({ ...smtp, pass: e.target.value })}
                   />
@@ -332,8 +332,11 @@ export default function Configuracoes() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="templates" className="mt-6">
-          <div className="flex justify-end mb-4">
+        <TabsContent
+          value="templates"
+          className="mt-6 flex-1 flex flex-col overflow-hidden"
+        >
+          <div className="flex justify-end mb-4 shrink-0">
             <Button
               onClick={() => {
                 setSelectedTemplate({ tipo: "COBRANCA" });
@@ -361,23 +364,7 @@ export default function Configuracoes() {
             </DialogTitle>
             <DialogDescription>
               Configure o conteúdo do e-mail utilizando texto personalizado e
-              variáveis dinâmicas. As variáveis disponíveis permitem inserir
-              automaticamente informações do destinatário e da cobrança no corpo
-              da mensagem. Utilize, por exemplo:{" "}
-              <span className="text-orange-600 font-medium">
-                {"{{ nome }}"}
-              </span>{" "}
-              para o nome do cliente,{" "}
-              <span className="text-orange-600 font-medium">
-                {"{{ valor }}"}
-              </span>{" "}
-              para o valor da cobrança e{" "}
-              <span className="text-orange-600 font-medium">
-                {"{{ vencimento }}"}
-              </span>
-              para a data de vencimento. Essas variáveis serão substituídas
-              automaticamente no momento do envio do e-mail, garantindo
-              comunicação personalizada e consistente.
+              variáveis dinâmicas.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

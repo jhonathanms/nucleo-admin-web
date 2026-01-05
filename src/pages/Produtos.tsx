@@ -238,11 +238,11 @@ export default function Produtos() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Produtos"
         description="Gerencie o catálogo de produtos"
-        icon={Package}
+        icon={Box}
         action={{
           label: "Novo Produto",
           onClick: () => handleOpenModal(),

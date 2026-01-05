@@ -84,6 +84,7 @@ export default function Auditoria() {
   const [totalLogs, setTotalLogs] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todos");
+  const [filtroAcao, setFiltroAcao] = useState<string>("TODOS");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [selectedLog, setSelectedLog] = useState<LogAuditoria | null>(null);
@@ -92,8 +93,9 @@ export default function Auditoria() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params: any = { size: 100 };
+      const params: any = { size: 200 };
       if (filtroEntidade !== "todos") params.entidade = filtroEntidade;
+      if (filtroAcao !== "TODOS") params.acao = filtroAcao;
       if (dataInicio) params.dataInicio = dataInicio;
       if (dataFim) params.dataFim = dataFim;
 
@@ -110,7 +112,7 @@ export default function Auditoria() {
     } finally {
       setIsLoading(false);
     }
-  }, [filtroEntidade, dataInicio, dataFim, toast]);
+  }, [filtroEntidade, filtroAcao, dataInicio, dataFim, toast]);
 
   useEffect(() => {
     loadLogs();
@@ -338,43 +340,80 @@ export default function Auditoria() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Auditoria"
-        description="Histórico de ações no sistema"
-        icon={ClipboardList}
+        description="Registro de atividades e logs do sistema"
+        icon={ShieldAlert}
       >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleExportCSV()}>
+              <FileText className="mr-2 h-4 w-4" />
+              Exportar CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExportPDF()}>
+              <File className="mr-2 h-4 w-4" />
+              Exportar PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </PageHeader>
+
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 shrink-0">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-sm text-muted-foreground">Total de Logs</p>
+          <p className="text-2xl font-bold">{totalLogs}</p>
+        </div>
+      </div>
+
+      {/* Filters in one row */}
+      <div className="flex gap-2 items-center shrink-0">
+        <Select value={filtroAcao} onValueChange={setFiltroAcao}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Ação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODOS">Todas Ações</SelectItem>
+            <SelectItem value="LOGIN">Login</SelectItem>
+            <SelectItem value="LOGOUT">Logout</SelectItem>
+            <SelectItem value="CRIAR">Criação</SelectItem>
+            <SelectItem value="ATUALIZAR">Atualização</SelectItem>
+            <SelectItem value="EXCLUIR">Exclusão</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filtroEntidade} onValueChange={setFiltroEntidade}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Entidade" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODOS">Todas</SelectItem>
+            <SelectItem value="USUARIO">Usuário</SelectItem>
+            <SelectItem value="CLIENTE">Cliente</SelectItem>
+            <SelectItem value="PRODUTO">Produto</SelectItem>
+            <SelectItem value="LICENCA">Licença</SelectItem>
+            <SelectItem value="TITULO">Título</SelectItem>
+            <SelectItem value="AUTH">Auth</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="gap-2">
               <Filter className="h-4 w-4" />
-              Filtros
+              Data
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80" align="end">
+          <PopoverContent className="w-80" align="start">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Entidade</Label>
-                <Select
-                  value={filtroEntidade}
-                  onValueChange={setFiltroEntidade}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
-                    <SelectItem value="CLIENTE">Cliente</SelectItem>
-                    <SelectItem value="PRODUTO">Produto</SelectItem>
-                    <SelectItem value="PLANO">Plano</SelectItem>
-                    <SelectItem value="LICENCA">Licença</SelectItem>
-                    <SelectItem value="USUARIO">Usuário</SelectItem>
-                    <SelectItem value="TITULO">Título</SelectItem>
-                    <SelectItem value="AUTH">Autenticação</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-2">
                   <Label>Data Início</Label>
@@ -398,42 +437,28 @@ export default function Auditoria() {
                 variant="outline"
                 className="w-full"
                 onClick={() => {
-                  setFiltroEntidade("todos");
                   setDataInicio("");
                   setDataFim("");
                 }}
               >
-                Limpar Filtros
+                Limpar Datas
               </Button>
             </div>
           </PopoverContent>
         </Popover>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleExportCSV}>
-              <FileText className="mr-2 h-4 w-4" />
-              Exportar CSV
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportPDF}>
-              <File className="mr-2 h-4 w-4" />
-              Exportar PDF
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </PageHeader>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Total de Logs</p>
-          <p className="text-2xl font-bold">{totalLogs}</p>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setFiltroEntidade("TODOS");
+            setFiltroAcao("TODOS");
+            setDataInicio("");
+            setDataFim("");
+          }}
+        >
+          Limpar Filtros
+        </Button>
       </div>
 
       <DataTable
@@ -441,7 +466,7 @@ export default function Auditoria() {
         columns={columns}
         searchKey="detalhes"
         searchPlaceholder="Buscar nos detalhes..."
-        itemsPerPage={100}
+        itemsPerPage={20}
         actions={[
           {
             label: "Ver Detalhes",

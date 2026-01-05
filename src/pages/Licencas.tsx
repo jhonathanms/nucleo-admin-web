@@ -25,6 +25,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { DataTable, Column, Action } from "@/components/DataTable";
 import { StatusBadge, getStatusVariant } from "@/components/StatusBadge";
 import { ProdutoLogo } from "@/components/ProdutoLogo";
+import { ClienteLogo } from "@/components/ClienteLogo";
 import {
   Dialog,
   DialogContent,
@@ -462,9 +463,11 @@ export default function Licencas() {
       header: "Cliente / Empresa",
       cell: (licenca) => (
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Building2 className="h-4 w-4 text-primary" />
-          </div>
+          <ClienteLogo
+            clienteId={licenca.clienteId}
+            razaoSocial={licenca.clienteNome}
+            className="h-9 w-9"
+          />
           <div>
             <Link
               to={`/clientes?id=${licenca.clienteId}`}
@@ -618,7 +621,7 @@ export default function Licencas() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Licenças"
         description="Gestão de acessos e produtos por cliente"
@@ -630,7 +633,7 @@ export default function Licencas() {
         }}
       />
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center shrink-0">
         <div className="flex gap-2">
           <Select value={filtroStatus} onValueChange={setFiltroStatus}>
             <SelectTrigger className="w-[150px]">
@@ -672,7 +675,7 @@ export default function Licencas() {
       </div>
 
       {mostrarFiltros && (
-        <Card className="bg-muted/30">
+        <Card className="bg-muted/30 shrink-0">
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -685,7 +688,7 @@ export default function Licencas() {
                     <SelectItem value="TODOS">Todos Clientes</SelectItem>
                     {clientes.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
+                        {c.razaoSocial}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -759,7 +762,7 @@ export default function Licencas() {
                       <span className="font-mono text-[10px] mr-2 opacity-70">
                         [{c.codigoCrm}]
                       </span>
-                      {c.nome}
+                      {c.razaoSocial}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -161,6 +161,7 @@ class UsuarioService {
    * Check if user has avatar
    */
   async checkAvatarExists(id: string): Promise<boolean> {
+    if (!id) return false;
     const response = await api.get<{ hasAvatar: boolean }>(
       `${this.baseURL}/${id}/avatar/exists`
     );

@@ -88,7 +88,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-8 h-full overflow-y-auto">
       <PageHeader
         title="Dashboard"
         description="Visão geral do sistema"

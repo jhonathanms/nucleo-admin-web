@@ -482,17 +482,11 @@ export default function Usuarios() {
       header: "Perfil Admin",
       cell: (usuario) => {
         const role = usuario.role as UserRole;
-        const perfil = (role && perfilLabels[role]) || {
-          label: role || "N/A",
-          variant: "default" as const,
-        };
-        return (
-          <StatusBadge
-            status={perfil.label}
-            variant={perfil.variant}
-            icon={Shield}
-          />
-        );
+        const perfilConfig = role ? perfilLabels[role] : undefined;
+        const label = perfilConfig ? perfilConfig.label : role || "N/A";
+        const variant = perfilConfig ? perfilConfig.variant : "default";
+
+        return <StatusBadge status={label} variant={variant} icon={Shield} />;
       },
     },
     {
@@ -684,7 +678,7 @@ export default function Usuarios() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Usuários"
         description="Gerencie os usuários internos e de clientes"
@@ -699,14 +693,14 @@ export default function Usuarios() {
       <Tabs
         value={activeTab}
         onValueChange={(value) => setSearchParams({ tab: value })}
-        className="w-full"
+        className="w-full flex-1 flex flex-col min-h-0 overflow-hidden"
       >
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6 shrink-0">
           <TabsTrigger value="internos">Usuários Internos</TabsTrigger>
           <TabsTrigger value="clientes">Usuários de Clientes</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="internos" className="space-y-4">
+        <TabsContent value="internos" className="flex-1 flex flex-col min-h-0">
           <DataTable
             data={usuariosInternos}
             columns={columnsInternos}
@@ -716,7 +710,7 @@ export default function Usuarios() {
           />
         </TabsContent>
 
-        <TabsContent value="clientes" className="space-y-4">
+        <TabsContent value="clientes" className="flex flex-col min-h-0">
           <DataTable
             data={usuariosClientes}
             columns={columnsClientes}
@@ -1062,12 +1056,14 @@ export default function Usuarios() {
                               status={
                                 v.role === "OPERADOR"
                                   ? "Usuário"
-                                  : perfilLabels[v.role as UserRole]?.label ||
-                                    v.role
+                                  : perfilLabels[v.role as UserRole]
+                                  ? perfilLabels[v.role as UserRole].label
+                                  : v.role
                               }
                               variant={
-                                perfilLabels[v.role as UserRole]?.variant ||
-                                "secondary"
+                                perfilLabels[v.role as UserRole]
+                                  ? perfilLabels[v.role as UserRole].variant
+                                  : "secondary"
                               }
                             />
                           </td>

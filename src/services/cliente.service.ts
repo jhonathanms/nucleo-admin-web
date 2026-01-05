@@ -5,6 +5,7 @@ import {
   CreateClienteDTO,
   UpdateClienteDTO,
   ClienteListResponse,
+  ClienteContato,
 } from "@/types/cliente.types";
 import { Usuario } from "@/types/usuario.types";
 
@@ -15,9 +16,25 @@ class ClienteService {
    * Get all clientes with pagination
    */
   async getAll(params?: QueryParams): Promise<ClienteListResponse> {
-    const response = await api.get<ClienteListResponse>(this.baseURL, {
-      params,
-    });
+    const response = await api.get<Cliente[] | ClienteListResponse>(
+      this.baseURL,
+      {
+        params,
+      }
+    );
+
+    if (Array.isArray(response.data)) {
+      return {
+        content: response.data,
+        totalElements: response.data.length,
+        totalPages: 1,
+        size: response.data.length,
+        page: 0,
+        first: true,
+        last: true,
+      };
+    }
+
     return response.data;
   }
 
@@ -59,12 +76,25 @@ class ClienteService {
     query: string,
     params?: QueryParams
   ): Promise<ClienteListResponse> {
-    const response = await api.get<ClienteListResponse>(
+    const response = await api.get<Cliente[] | ClienteListResponse>(
       `${this.baseURL}/search`,
       {
         params: { ...params, q: query },
       }
     );
+
+    if (Array.isArray(response.data)) {
+      return {
+        content: response.data,
+        totalElements: response.data.length,
+        totalPages: 1,
+        size: response.data.length,
+        page: 0,
+        first: true,
+        last: true,
+      };
+    }
+
     return response.data;
   }
 
@@ -105,6 +135,93 @@ class ClienteService {
    */
   async activate(id: string): Promise<Cliente> {
     const response = await api.patch<Cliente>(`${this.baseURL}/${id}/activate`);
+    return response.data;
+  }
+
+  /**
+   * Get contacts for a client
+   */
+  async getContatos(clienteId: string): Promise<ClienteContato[]> {
+    const response = await api.get<ClienteContato[]>(
+      `${this.baseURL}/${clienteId}/contatos`
+    );
+    return response.data;
+  }
+
+  /**
+   * Add a contact to a client
+   */
+  async addContato(
+    clienteId: string,
+    contato: Omit<ClienteContato, "id">
+  ): Promise<ClienteContato> {
+    const response = await api.post<ClienteContato>(
+      `${this.baseURL}/${clienteId}/contatos`,
+      contato
+    );
+    return response.data;
+  }
+
+  /**
+   * Delete a contact
+   */
+  async deleteContato(contatoId: string): Promise<void> {
+    await api.delete(`${this.baseURL}/contatos/${contatoId}`);
+  }
+
+  /**
+   * Upload client logo
+   */
+  async uploadLogo(
+    clienteId: string,
+    file: File
+  ): Promise<{ message: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<{ message: string }>(
+      `${this.baseURL}/${clienteId}/logo`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  }
+
+  /**
+   * Get client logo
+   */
+  async getLogo(clienteId: string): Promise<string> {
+    const response = await api.get<{ base64: string }>(
+      `${this.baseURL}/${clienteId}/logo`
+    );
+    return response.data.base64;
+  }
+
+  /**
+   * Delete client logo
+   */
+  async deleteLogo(clienteId: string): Promise<void> {
+    await api.delete(`${this.baseURL}/${clienteId}/logo`);
+  }
+
+  /**
+   * Check if client has logo
+   */
+  async hasLogo(clienteId: string): Promise<boolean> {
+    const response = await api.get<boolean>(
+      `${this.baseURL}/${clienteId}/logo/exists`
+    );
+    return response.data;
+  }
+
+  /**
+   * Set a contact as principal
+   */
+  async setContatoPrincipal(contatoId: string): Promise<ClienteContato> {
+    const response = await api.patch<ClienteContato>(
+      `${this.baseURL}/contatos/${contatoId}/principal`
+    );
     return response.data;
   }
 }

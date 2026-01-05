@@ -203,7 +203,7 @@ export default function Recursos() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Recursos e Módulos"
         description="Gerencie os módulos disponíveis para os planos"

@@ -115,7 +115,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background overflow-hidden flex flex-col">
       <AppSidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -123,11 +123,11 @@ export function AppLayout() {
       <AppHeader sidebarCollapsed={sidebarCollapsed} />
       <main
         className={cn(
-          "min-h-screen pt-28 transition-all duration-300 ease-in-out",
-          sidebarCollapsed ? "pl-28" : "pl-80"
+          "flex-1 flex flex-col overflow-hidden pt-20 transition-all duration-300 ease-in-out",
+          sidebarCollapsed ? "pl-20" : "pl-80"
         )}
       >
-        <div className="p-8 animate-fade-in max-w-[1600px] mx-auto">
+        <div className="flex-1 flex flex-col overflow-hidden p-6 animate-fade-in max-w-[1600px] mx-auto w-full">
           <Outlet />
         </div>
       </main>

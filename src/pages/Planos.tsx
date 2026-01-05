@@ -371,7 +371,7 @@ export default function Planos() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <PageHeader
         title="Planos"
         description="Gerencie os planos de assinatura"

@@ -1,16 +1,27 @@
 import { PaginatedResponse, Status } from "./common.types";
 
+export interface ClienteContato {
+  id?: string;
+  tipo: "EMAIL" | "TELEFONE";
+  valor: string;
+  isWhatsapp: boolean;
+  isPrincipal: boolean;
+}
+
 export interface Cliente {
   id: string;
-  codigoCrm: string;
-  nome: string;
+  razaoSocial: string;
+  nomeFantasia?: string;
   documento: string;
+  inscricaoEstadual?: string;
+  inscricaoMunicipal?: string;
+  codigoCrm: string;
   tipo: "PF" | "PJ";
-  email: string;
-  telefone: string;
+  contatos: ClienteContato[];
   endereco?: Endereco;
   status: Status;
   observacoes?: string;
+  logo?: string;
   criadoEm: string;
   atualizadoEm: string;
 }
@@ -23,28 +34,24 @@ export interface Endereco {
   bairro: string;
   cidade: string;
   estado: string;
+  uf?: string;
   pais: string;
 }
 
 export interface CreateClienteDTO {
-  codigoCrm: string;
-  nome: string;
+  razaoSocial: string;
+  nomeFantasia?: string;
   documento: string;
+  inscricaoEstadual?: string;
+  inscricaoMunicipal?: string;
   tipo: "PF" | "PJ";
-  email: string;
-  telefone: string;
+  contatos?: ClienteContato[];
   endereco?: Endereco;
   observacoes?: string;
 }
 
-export interface UpdateClienteDTO {
-  codigoCrm?: string;
-  nome?: string;
-  email?: string;
-  telefone?: string;
-  endereco?: Endereco;
+export interface UpdateClienteDTO extends Partial<CreateClienteDTO> {
   status?: Status;
-  observacoes?: string;
 }
 
 export type ClienteListResponse = PaginatedResponse<Cliente>;
