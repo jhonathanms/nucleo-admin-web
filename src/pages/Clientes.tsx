@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import clienteService from "@/services/cliente.service";
 import licencaService from "@/services/licenca.service";
 import usuarioService from "@/services/usuario.service";
+import cnpjService from "@/services/cnpj.service";
 import {
   Cliente,
   CreateClienteDTO,
@@ -86,6 +87,7 @@ export default function Clientes() {
   const [logoRefreshKey, setLogoRefreshKey] = useState(0);
   const [criarOutro, setCriarOutro] = useState(false);
   const [isBuscandoCep, setIsBuscandoCep] = useState(false);
+  const [isBuscandoCnpj, setIsBuscandoCnpj] = useState(false);
 
   const { toast } = useToast();
   const { handleError, clearError } = useApiError();
@@ -226,6 +228,88 @@ export default function Clientes() {
       console.error("Erro ao buscar CEP:", error);
     } finally {
       setIsBuscandoCep(false);
+    }
+  };
+
+  const handleBuscarCnpj = async (cnpj: string) => {
+    const cleanCnpj = cnpj.replace(/\D/g, "");
+    if (cleanCnpj.length !== 14) return;
+
+    setIsBuscandoCnpj(true);
+    try {
+      const data = await cnpjService.buscarCnpj(cleanCnpj);
+
+      setFormData((prev) => {
+        const newContatos = [...(prev.contatos || [])];
+
+        if (data.email) {
+          const emailExiste = newContatos.some(
+            (c) =>
+              c.tipo === "EMAIL" &&
+              c.valor.toLowerCase() === data.email.toLowerCase()
+          );
+          if (!emailExiste) {
+            newContatos.push({
+              tipo: "EMAIL",
+              valor: data.email.toLowerCase(),
+              isPrincipal: !newContatos.some((c) => c.tipo === "EMAIL"),
+              isWhatsapp: false,
+            });
+          }
+        }
+
+        const ddd = data.ddd_telefone_1 || data.ddd_telefone_2 || "";
+        const tel = data.telefone_1 || data.telefone_2 || "";
+        const telefone = ddd && tel ? `(${ddd}) ${tel}` : tel || ddd;
+
+        if (telefone) {
+          const telExiste = newContatos.some(
+            (c) =>
+              c.tipo === "TELEFONE" &&
+              c.valor.replace(/\D/g, "") === telefone.replace(/\D/g, "")
+          );
+          if (!telExiste) {
+            newContatos.push({
+              tipo: "TELEFONE",
+              valor: telefone,
+              isPrincipal: !newContatos.some((c) => c.tipo === "TELEFONE"),
+              isWhatsapp: false,
+            });
+          }
+        }
+
+        return {
+          ...prev,
+          razaoSocial: data.razao_social,
+          nomeFantasia: data.nome_fantasia || data.razao_social,
+          endereco: {
+            ...prev.endereco!,
+            cep: maskCEP(data.cep),
+            logradouro: data.logradouro,
+            numero: data.numero,
+            complemento: data.complemento,
+            bairro: data.bairro,
+            cidade: data.municipio,
+            estado: data.uf,
+          },
+          contatos: newContatos,
+        };
+      });
+
+      toast({
+        title: "Dados recuperados",
+        description:
+          "As informações da empresa foram preenchidas automaticamente.",
+      });
+    } catch (error) {
+      console.error("Erro ao buscar CNPJ:", error);
+      toast({
+        title: "Erro ao buscar CNPJ",
+        description: "Não foi possível recuperar os dados para este CNPJ.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBuscandoCnpj(false);
     }
   };
 
@@ -632,21 +716,37 @@ export default function Clientes() {
                 <Label htmlFor="documento">
                   {formData.tipo === "PJ" ? "CNPJ" : "CPF"}
                 </Label>
-                <Input
-                  id="documento"
-                  value={formData.documento || ""}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const maskedValue =
-                      formData.tipo === "PJ" ? maskCNPJ(value) : maskCPF(value);
-                    setFormData({ ...formData, documento: maskedValue });
-                  }}
-                  placeholder={
-                    formData.tipo === "PJ"
-                      ? "00.000.000/0000-00"
-                      : "000.000.000-00"
-                  }
-                />
+                <div className="relative">
+                  <Input
+                    id="documento"
+                    value={formData.documento || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const maskedValue =
+                        formData.tipo === "PJ"
+                          ? maskCNPJ(value)
+                          : maskCPF(value);
+                      setFormData({ ...formData, documento: maskedValue });
+
+                      if (
+                        formData.tipo === "PJ" &&
+                        maskedValue.replace(/\D/g, "").length === 14
+                      ) {
+                        handleBuscarCnpj(maskedValue);
+                      }
+                    }}
+                    placeholder={
+                      formData.tipo === "PJ"
+                        ? "00.000.000/0000-00"
+                        : "000.000.000-00"
+                    }
+                  />
+                  {isBuscandoCnpj && (
+                    <div className="absolute right-3 top-2.5">
+                      <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="col-span-1 md:col-span-2 space-y-2">
