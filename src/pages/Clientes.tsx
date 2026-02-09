@@ -421,18 +421,12 @@ export default function Clientes() {
           const senhaPadrao =
             formData.documento?.replace(/\D/g, "") || "123456";
 
-          const novoUsuario = await usuarioService.create({
+          await usuarioService.create({
             nome: novoCliente.razaoSocial,
             email: principalEmail,
             senha: senhaPadrao,
             tipo: "CLIENTE",
             role: "OPERADOR",
-          });
-
-          // Criar vínculo global com o cliente (Admin do Cliente)
-          await usuarioService.addVinculo(novoUsuario.id, {
-            clienteId: novoCliente.id,
-            role: "ADMIN",
           });
 
           toast({
@@ -1050,7 +1044,7 @@ export default function Clientes() {
 
       {/* Modal de Detalhes do Cliente */}
       <Dialog open={detalhesModalOpen} onOpenChange={setDetalhesModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+        <DialogContent className="max-w-4xl max-h-[90vh] min-h-[600px] flex flex-col p-0">
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="flex items-center gap-3">
               <div className="flex items-center gap-2">
@@ -1074,7 +1068,7 @@ export default function Clientes() {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             {isLoadingDetalhes ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
                 <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
@@ -1234,7 +1228,8 @@ export default function Clientes() {
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold flex items-center gap-2">
                         <Users className="h-4 w-4" />
-                        Usuários Vinculados ({usuariosVinculados.length})
+                        Usuários Vinculados (
+                        {new Set(usuariosVinculados.map((u) => u.id)).size})
                       </h3>
                       <Button
                         variant="ghost"
@@ -1248,7 +1243,21 @@ export default function Clientes() {
 
                     <div className="space-y-2">
                       {usuariosVinculados.length > 0 ? (
-                        usuariosVinculados.map((u) => (
+                        // Agrupar usuários por ID para evitar duplicatas na lista visual
+                        Object.values(
+                          usuariosVinculados.reduce((acc, u) => {
+                            if (!acc[u.id]) {
+                              acc[u.id] = { ...u, roles: [] };
+                            }
+                            const vinculo = u.vinculos?.find(
+                              (v) => v.clienteId === clienteSelecionado?.id
+                            );
+                            if (vinculo) {
+                              acc[u.id].roles.push(vinculo.role);
+                            }
+                            return acc;
+                          }, {} as Record<string, Usuario & { roles: string[] }>)
+                        ).map((u) => (
                           <div
                             key={u.id}
                             className="flex items-center justify-between p-3 border rounded-lg bg-card"
@@ -1266,11 +1275,26 @@ export default function Clientes() {
                                 </p>
                               </div>
                             </div>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {u.vinculos?.find(
-                                (v) => v.clienteId === clienteSelecionado?.id
-                              )?.role || "OPERADOR"}
-                            </Badge>
+                            <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
+                              {[...new Set(u.roles)].length > 0 ? (
+                                [...new Set(u.roles)].map((role, i) => (
+                                  <Badge
+                                    key={i}
+                                    variant="secondary"
+                                    className="text-[10px] h-5"
+                                  >
+                                    {role}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] h-5"
+                                >
+                                  OPERADOR
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         ))
                       ) : (
@@ -1365,7 +1389,7 @@ export default function Clientes() {
                 </div>
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           <DialogFooter className="p-6 pt-2">
             <Button onClick={() => setDetalhesModalOpen(false)}>Fechar</Button>

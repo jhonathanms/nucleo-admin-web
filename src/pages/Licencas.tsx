@@ -331,17 +331,61 @@ export default function Licencas() {
         };
         const novaLicenca = await licencaService.create(createPayload);
 
-        // Se houver usuário principal, criar o vínculo com a licença
-        if (formData.usuarioPrincipalId) {
-          try {
+        // Lógica de Vínculo Automático por E-mail
+        try {
+          // 1. Obter os e-mails de contato do cliente
+          const cliente = clientes.find((c) => c.id === formData.clienteId);
+          const emailsContato =
+            cliente?.contatos
+              ?.filter((c) => c.tipo === "EMAIL")
+              .map((c) => c.valor.toLowerCase()) || [];
+
+          if (emailsContato.length > 0) {
+            // 2. Buscar todos os usuários para verificar coincidência de e-mail
+            // Nota: Idealmente teríamos um endpoint de busca por e-mail, mas usaremos getAll por enquanto
+            const usuariosRes = await usuarioService.getAll({ size: 1000 });
+            const usuariosParaVincular = usuariosRes.content.filter((u) =>
+              emailsContato.includes(u.email.toLowerCase())
+            );
+
+            // 3. Criar vínculos para os usuários encontrados
+            for (const usuario of usuariosParaVincular) {
+              await usuarioService.addVinculo(usuario.id, {
+                clienteId: formData.clienteId!,
+                licencaId: novaLicenca.id,
+                role: "OPERADOR",
+              });
+            }
+
+            // 4. Se houver um usuário principal selecionado manualmente que não estava nos contatos, vinculá-lo também
+            if (
+              formData.usuarioPrincipalId &&
+              !usuariosParaVincular.some(
+                (u) => u.id === formData.usuarioPrincipalId
+              )
+            ) {
+              await usuarioService.addVinculo(formData.usuarioPrincipalId, {
+                clienteId: formData.clienteId!,
+                licencaId: novaLicenca.id,
+                role: "OPERADOR",
+              });
+            }
+          } else if (formData.usuarioPrincipalId) {
+            // Se não houver contatos mas houver usuário principal manual
             await usuarioService.addVinculo(formData.usuarioPrincipalId, {
               clienteId: formData.clienteId!,
               licencaId: novaLicenca.id,
               role: "OPERADOR",
             });
-          } catch (err) {
-            console.error("Erro ao criar vínculo de licença:", err);
           }
+        } catch (err) {
+          console.error("Erro ao processar vínculos automáticos:", err);
+          toast({
+            title: "Aviso",
+            description:
+              "Licença criada, mas houve um erro ao processar os vínculos automáticos de usuários.",
+            variant: "warning",
+          });
         }
 
         toast({ title: "Sucesso", description: "Licença criada." });

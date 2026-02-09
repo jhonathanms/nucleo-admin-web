@@ -4,7 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { UserProvider } from "@/contexts/UserContext";
 import { AppLayout } from "@/components/AppLayout";
+import { GlobalLogoutModal } from "@/components/GlobalLogoutModal";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
@@ -24,30 +26,33 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="system" storageKey="nucleo-admin-theme">
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter future={{ v7_relativeSplatPath: true }}>
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/clientes" element={<Clientes />} />
-              <Route path="/produtos" element={<Produtos />} />
-              <Route path="/planos" element={<Planos />} />
-              <Route path="/licencas" element={<Licencas />} />
-              <Route path="/usuarios" element={<Usuarios />} />
-              <Route path="/financeiro" element={<Financeiro />} />
-              <Route path="/auditoria" element={<Auditoria />} />
-              <Route path="/configuracoes" element={<Configuracoes />} />
-              <Route path="/contexto-licenca" element={<ContextoLicenca />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <UserProvider>
+        <TooltipProvider>
+          <GlobalLogoutModal />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
+            <Routes>
+              <Route path="/" element={<Login />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/clientes" element={<Clientes />} />
+                <Route path="/produtos" element={<Produtos />} />
+                <Route path="/planos" element={<Planos />} />
+                <Route path="/licencas" element={<Licencas />} />
+                <Route path="/usuarios" element={<Usuarios />} />
+                <Route path="/financeiro" element={<Financeiro />} />
+                <Route path="/auditoria" element={<Auditoria />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
+                <Route path="/contexto-licenca" element={<ContextoLicenca />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </UserProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

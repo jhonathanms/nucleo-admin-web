@@ -69,6 +69,14 @@ import authService from "@/services/auth.service";
 import { UserAvatar } from "@/components/UserAvatar";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { ProdutoLogo } from "@/components/ProdutoLogo";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { UsuariosModalForm } from "@/components/UsuariosModalForm";
+import { useUser } from "@/contexts/UserContext";
 
 const perfilLabels: Record<
   UserRole,
@@ -115,8 +123,14 @@ export default function Usuarios() {
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
+  const { avatarRefreshKey, refreshAvatar } = useUser();
   const [licencas, setLicencas] = useState<Licenca[]>([]);
+  const [mostrarExcluidos, setMostrarExcluidos] = useState(false);
+  const [usuarioParaExcluir, setUsuarioParaExcluir] = useState<Usuario | null>(
+    null
+  );
+  const [excluirModalAberto, setExcluirModalAberto] = useState(false);
+  const [isExcluindo, setIsExcluindo] = useState(false);
 
   // Vinculos State
   const [vinculoModalOpen, setVinculoModalOpen] = useState(false);
@@ -144,8 +158,12 @@ export default function Usuarios() {
       setIsLoading(true);
       const [internosRes, clientesUsuariosRes, clientesRes, licencasRes] =
         await Promise.all([
-          usuarioService.getByTipo("INTERNO"),
-          usuarioService.getByTipo("CLIENTE"),
+          usuarioService.getByTipo("INTERNO", {
+            incluirExcluidos: mostrarExcluidos,
+          }),
+          usuarioService.getByTipo("CLIENTE", {
+            incluirExcluidos: mostrarExcluidos,
+          }),
           clienteService.getAll({ size: 100 }),
           licencaService.getAll({ size: 500 }),
         ]);
@@ -172,7 +190,7 @@ export default function Usuarios() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, mostrarExcluidos]);
 
   useEffect(() => {
     loadData();
@@ -184,35 +202,27 @@ export default function Usuarios() {
 
   const openNewUserModal = () => {
     setUsuarioEditando(null);
-    setFormData(INITIAL_FORM_DATA);
     clearError();
     setModalAberto(true);
   };
 
   const openEditUserModal = (usuario: Usuario) => {
     setUsuarioEditando(usuario);
-    setFormData({
-      nome: usuario.nome,
-      email: usuario.email,
-      tipo: usuario.tipo,
-      role: usuario.role,
-      senha: "",
-    });
     clearError();
     setModalAberto(true);
   };
 
-  const handleSalvar = async () => {
+  const handleSalvar = async (data: any) => {
     try {
       const currentUser = authService.getStoredUser();
       const isEditingSelf = usuarioEditando?.id === currentUser?.id;
-      const emailChanged = formData.email !== usuarioEditando?.email;
+      const emailChanged = data.email !== usuarioEditando?.email;
 
       const payload: any = {
-        nome: formData.nome,
-        email: formData.email,
-        tipo: formData.tipo,
-        role: formData.role,
+        nome: data.nome,
+        email: data.email,
+        tipo: data.tipo,
+        role: data.role,
       };
 
       if (usuarioEditando) {
@@ -282,6 +292,31 @@ export default function Usuarios() {
       loadData();
     } catch (error) {
       handleError(error, "Não foi possível alterar o status do usuário.");
+    }
+  };
+
+  const openExcluirModal = (usuario: Usuario) => {
+    setUsuarioParaExcluir(usuario);
+    setExcluirModalAberto(true);
+  };
+
+  const handleExcluir = async () => {
+    if (!usuarioParaExcluir) return;
+
+    try {
+      setIsExcluindo(true);
+      await usuarioService.delete(usuarioParaExcluir.id);
+      toast({
+        title: "Usuário excluído",
+        description: `${usuarioParaExcluir.nome} foi excluído com sucesso.`,
+      });
+      setExcluirModalAberto(false);
+      setUsuarioParaExcluir(null);
+      loadData();
+    } catch (error) {
+      handleError(error, "Não foi possível excluir o usuário.");
+    } finally {
+      setIsExcluindo(false);
     }
   };
 
@@ -492,12 +527,23 @@ export default function Usuarios() {
     {
       key: "ativo",
       header: "Status",
-      cell: (usuario) => (
-        <StatusBadge
-          status={usuario.ativo ? "Ativo" : "Inativo"}
-          variant={usuario.ativo ? "success" : "muted"}
-        />
-      ),
+      cell: (usuario) => {
+        if (usuario.excluido) {
+          return (
+            <StatusBadge
+              status="Excluído"
+              variant="destructive"
+              icon={XCircle}
+            />
+          );
+        }
+        return (
+          <StatusBadge
+            status={usuario.ativo ? "Ativo" : "Inativo"}
+            variant={usuario.ativo ? "success" : "warning"}
+          />
+        );
+      },
     },
     {
       key: "ultimoAcesso",
@@ -581,66 +627,81 @@ export default function Usuarios() {
         }, {} as Record<string, { nome: string; codigoCrm: string; licencas: { id?: string; nome: string; produtoId?: string; planoNome?: string }[] }>);
 
         return (
-          <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-1 custom-scrollbar py-2">
-            {Object.entries(grouped).map(([clienteId, data]) => (
-              <div
-                key={clienteId}
-                className="flex items-center gap-2 p-1 pr-2 rounded-full border bg-card hover:bg-accent transition-colors group w-fit"
-              >
-                <div className="flex items-center gap-1.5 pl-1">
-                  <Badge
-                    variant="outline"
-                    className="font-mono text-[9px] px-1 py-0 h-3.5 border-primary/30 text-primary bg-primary/5"
-                  >
-                    {data.codigoCrm}
-                  </Badge>
-                  <Link
-                    to={`/clientes?id=${clienteId}`}
-                    className="text-xs font-semibold hover:text-primary transition-colors whitespace-nowrap"
-                  >
-                    {data.nome}
-                  </Link>
-                </div>
-
-                <div className="flex items-center gap-1 ml-1 pl-2 border-l border-border/50">
-                  {data.licencas.map((lic, idx) => (
-                    <div key={idx} className="flex items-center">
-                      {lic.id ? (
-                        <Link
-                          to={`/licencas?id=${lic.id}`}
-                          className="hover:scale-110 transition-transform"
+          <TooltipProvider>
+            <div className="flex flex-row flex-wrap gap-2 max-h-[82px] overflow-y-auto pr-1 custom-scrollbar py-1">
+              {Object.entries(grouped).map(([clienteId, data]) => (
+                <Tooltip key={clienteId}>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 p-1 pr-2 rounded-full border bg-card hover:bg-accent transition-colors group w-fit cursor-default">
+                      <div className="flex items-center gap-1 pl-1">
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[9px] px-1 py-0 h-3.5 border-primary/30 text-primary bg-primary/5"
                         >
-                          <ProdutoLogo
-                            produtoId={lic.produtoId || ""}
-                            produtoNome={lic.nome}
-                            planoNome={lic.planoNome}
-                            className="h-7 w-7"
-                            showTooltip
-                          />
-                        </Link>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground italic px-1">
-                          {lic.nome}
-                        </span>
-                      )}
+                          {data.codigoCrm}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-1 ml-1 pl-1.5 border-l border-border/50">
+                        {data.licencas.map((lic, idx) => (
+                          <div key={idx} className="flex items-center">
+                            {lic.id ? (
+                              <Link
+                                to={`/licencas?id=${lic.id}`}
+                                className="hover:scale-110 transition-transform"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ProdutoLogo
+                                  produtoId={lic.produtoId || ""}
+                                  produtoNome={lic.nome}
+                                  planoNome={lic.planoNome}
+                                  className="h-6 w-6"
+                                  showTooltip
+                                />
+                              </Link>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground italic px-1">
+                                {lic.nome}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="flex flex-col gap-1">
+                    <p className="font-bold text-xs">{data.nome}</p>
+                    <p className="text-[10px] opacity-70">
+                      Clique no CRM para ver detalhes do cliente
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </TooltipProvider>
         );
       },
     },
     {
       key: "ativo",
       header: "Status",
-      cell: (usuario) => (
-        <StatusBadge
-          status={usuario.ativo ? "Ativo" : "Inativo"}
-          variant={usuario.ativo ? "success" : "muted"}
-        />
-      ),
+      cell: (usuario) => {
+        if (usuario.excluido) {
+          return (
+            <StatusBadge
+              status="Excluído"
+              variant="destructive"
+              icon={XCircle}
+            />
+          );
+        }
+        return (
+          <StatusBadge
+            status={usuario.ativo ? "Ativo" : "Inativo"}
+            variant={usuario.ativo ? "success" : "warning"}
+          />
+        );
+      },
     },
     {
       key: "ultimoAcesso",
@@ -659,21 +720,53 @@ export default function Usuarios() {
   ];
 
   const actionsInternos: Action<Usuario>[] = [
-    { label: "Editar", onClick: openEditUserModal },
-    { label: "Alterar senha", onClick: openResetPasswordModal },
+    { label: "Editar", onClick: openEditUserModal, hide: (u) => u.excluido },
+    {
+      label: "Alterar senha",
+      onClick: openResetPasswordModal,
+      hide: (u) => u.excluido,
+    },
     {
       label: (usuario: Usuario) => (usuario.ativo ? "Inativar" : "Ativar"),
       onClick: handleStatusChange,
+      hide: (u) => u.excluido,
+    },
+    {
+      label: "Excluir",
+      onClick: openExcluirModal,
+      variant: "destructive",
+      icon: Trash2,
+      hide: (u) => u.excluido,
     },
   ];
 
   const actionsClientes: Action<Usuario>[] = [
-    { label: "Gerenciar Vínculos", onClick: openVinculosModal },
-    { label: "Editar Perfil", onClick: openEditUserModal },
-    { label: "Alterar senha", onClick: openResetPasswordModal },
+    {
+      label: "Gerenciar Vínculos",
+      onClick: openVinculosModal,
+      hide: (u) => u.excluido,
+    },
+    {
+      label: "Editar Perfil",
+      onClick: openEditUserModal,
+      hide: (u) => u.excluido,
+    },
+    {
+      label: "Alterar senha",
+      onClick: openResetPasswordModal,
+      hide: (u) => u.excluido,
+    },
     {
       label: (usuario: Usuario) => (usuario.ativo ? "Inativar" : "Ativar"),
       onClick: handleStatusChange,
+      hide: (u) => u.excluido,
+    },
+    {
+      label: "Excluir",
+      onClick: openExcluirModal,
+      variant: "destructive",
+      icon: Trash2,
+      hide: (u) => u.excluido,
     },
   ];
 
@@ -695,10 +788,26 @@ export default function Usuarios() {
         onValueChange={(value) => setSearchParams({ tab: value })}
         className="w-full flex-1 flex flex-col min-h-0 overflow-hidden"
       >
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6 shrink-0">
-          <TabsTrigger value="internos">Usuários Internos</TabsTrigger>
-          <TabsTrigger value="clientes">Usuários de Clientes</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-6 shrink-0">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="internos">Usuários Internos</TabsTrigger>
+            <TabsTrigger value="clientes">Usuários de Clientes</TabsTrigger>
+          </TabsList>
+
+          <div className="flex items-center space-x-2 bg-muted/30 px-3 py-2 rounded-lg border border-border/50">
+            <Checkbox
+              id="mostrar-excluidos"
+              checked={mostrarExcluidos}
+              onCheckedChange={(checked) => setMostrarExcluidos(!!checked)}
+            />
+            <Label
+              htmlFor="mostrar-excluidos"
+              className="text-sm font-medium cursor-pointer"
+            >
+              Mostrar usuários excluídos
+            </Label>
+          </div>
+        </div>
 
         <TabsContent value="internos" className="flex-1 flex flex-col min-h-0">
           <DataTable
@@ -707,6 +816,11 @@ export default function Usuarios() {
             actions={actionsInternos}
             searchKey="nome"
             searchPlaceholder="Buscar usuários internos..."
+            getRowClassName={(u) =>
+              u.excluido
+                ? "opacity-50 grayscale-[0.5] border-l-4 border-l-destructive/50"
+                : ""
+            }
           />
         </TabsContent>
 
@@ -717,119 +831,22 @@ export default function Usuarios() {
             actions={actionsClientes}
             searchKey={["nome", "email", "crmSearch" as any]}
             searchPlaceholder="Buscar por nome, email ou CRM..."
+            getRowClassName={(u) =>
+              u.excluido
+                ? "opacity-50 grayscale-[0.5] border-l-4 border-l-destructive/50"
+                : ""
+            }
           />
         </TabsContent>
       </Tabs>
 
-      {/* Modal de Criar/Editar Usuário */}
-      <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {usuarioEditando ? "Editar Usuário" : "Novo Usuário"}
-            </DialogTitle>
-            <DialogDescription>
-              {usuarioEditando
-                ? "Atualize as informações básicas do usuário"
-                : "Cadastre um novo usuário global no sistema"}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {usuarioEditando && (
-              <div className="flex flex-col items-center justify-center pb-4">
-                <Label className="mb-2 self-start">Foto de Perfil</Label>
-                <AvatarUpload
-                  userId={usuarioEditando.id}
-                  userName={usuarioEditando.nome}
-                  onUploadSuccess={() =>
-                    setAvatarRefreshKey((prev) => prev + 1)
-                  }
-                  onDeleteSuccess={() =>
-                    setAvatarRefreshKey((prev) => prev + 1)
-                  }
-                />
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome</Label>
-              <Input
-                id="nome"
-                value={formData.nome}
-                onChange={(e) => handleInputChange("nome", e.target.value)}
-                placeholder="Nome completo"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-                placeholder="email@exemplo.com"
-              />
-              {usuarioEditando && (
-                <p className="text-[10px] text-amber-600 font-medium flex items-start gap-1 mt-1">
-                  <AlertCircle className="h-3 w-3 mt-0.5" />
-                  <span>
-                    Atenção: Se o e-mail for alterado, o usuário será
-                    desconectado de todos os produtos ativos por segurança.
-                  </span>
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tipo">Tipo de Usuário</Label>
-              <Select
-                value={formData.tipo}
-                onValueChange={(value) => handleInputChange("tipo", value)}
-                disabled={!!usuarioEditando}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INTERNO">
-                    Interno (Admin/Operador)
-                  </SelectItem>
-                  <SelectItem value="CLIENTE">Cliente (Global)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.tipo === "INTERNO" && (
-              <div className="space-y-2">
-                <Label htmlFor="perfil">Perfil de Acesso (Admin)</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => handleInputChange("role", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o perfil" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ADMIN">Administrador</SelectItem>
-                    <SelectItem value="OPERADOR">Usuário</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModalAberto(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSalvar} disabled={isLoading}>
-              {usuarioEditando ? "Salvar" : "Cadastrar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UsuariosModalForm
+        open={modalAberto}
+        onOpenChange={setModalAberto}
+        usuario={usuarioEditando}
+        onSave={handleSalvar}
+        isLoading={isLoading}
+      />
 
       {/* Modal de Gerenciar Vínculos */}
       <Dialog open={vinculoModalOpen} onOpenChange={setVinculoModalOpen}>
@@ -877,7 +894,7 @@ export default function Usuarios() {
                           <span className="font-mono text-[10px] mr-2 opacity-70">
                             [{c.codigoCrm}]
                           </span>
-                          {c.nome}
+                          {c.razaoSocial}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1063,7 +1080,7 @@ export default function Usuarios() {
                               variant={
                                 perfilLabels[v.role as UserRole]
                                   ? perfilLabels[v.role as UserRole].variant
-                                  : "secondary"
+                                  : "default"
                               }
                             />
                           </td>
@@ -1273,6 +1290,66 @@ export default function Usuarios() {
               }
             >
               Confirmar Alteração
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <Dialog open={excluirModalAberto} onOpenChange={setExcluirModalAberto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Confirmar Exclusão
+            </DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o usuário{" "}
+              <span className="font-bold text-foreground">
+                {usuarioParaExcluir?.nome}
+              </span>
+              ?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <Alert
+              variant="destructive"
+              className="bg-destructive/10 border-destructive/20"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs font-medium">
+                Esta ação é irreversível. O usuário será marcado como excluído e
+                não poderá mais acessar nenhum produto ou ser editado.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setExcluirModalAberto(false)}
+              disabled={isExcluindo}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleExcluir}
+              disabled={isExcluindo}
+              className="gap-2"
+            >
+              {isExcluindo ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Confirmar Exclusão
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

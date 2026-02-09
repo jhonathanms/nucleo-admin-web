@@ -24,6 +24,7 @@ export interface Usuario {
   tipo: UsuarioTipo;
   role: UserRole; // Para usuários internos, define o nível de acesso ao Núcleo Admin
   ativo: boolean;
+  excluido: boolean;
   avatar?: string;
   telefone?: string;
   ultimoAcesso?: string;

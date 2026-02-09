@@ -1,5 +1,6 @@
 import api from "./api";
 import { TokenStorage } from "@/lib/token-storage";
+import { AppError } from "@/types/common.types";
 import {
   LoginRequest,
   LoginResponse,
@@ -22,18 +23,19 @@ class AuthService {
 
     // Check if user has permission to access the admin panel
     // Only internal users (ADMIN, GERENTE, OPERADOR) can access
+
     if (response.data.user.role === "CLIENTE") {
-      // Throw an error that mimics an API error structure so it can be handled by the UI
-      throw {
-        response: {
-          status: 403,
-          data: {
-            message:
+      throw new AppError(
+        [
+          {
+            codigo: -9,
+            mensagem:
               "Acesso negado. Usuário não possui permissão para acessar este sistema.",
-            error: "Forbidden",
+            metadata: null,
           },
-        },
-      };
+        ],
+        403,
+      );
     }
 
     // Save tokens and user data
@@ -74,7 +76,7 @@ class AuthService {
     const data: RefreshTokenRequest = { refreshToken };
     const response = await api.post<RefreshTokenResponse>(
       "/auth/refresh",
-      data
+      data,
     );
 
     // Update tokens
@@ -140,7 +142,7 @@ class AuthService {
       { email },
       {
         headers: { skipAuthRedirect: "true" },
-      }
+      },
     );
   }
 
@@ -148,12 +150,12 @@ class AuthService {
    * Validate password reset token
    */
   async validateResetToken(
-    token: string
+    token: string,
   ): Promise<{ valido: boolean; email?: string }> {
     const response = await api.post<{ valido: boolean; email?: string }>(
       "/auth/validar-token-redefinicao",
       { token },
-      { headers: { skipAuthRedirect: "true" } }
+      { headers: { skipAuthRedirect: "true" } },
     );
     return response.data;
   }
@@ -167,7 +169,7 @@ class AuthService {
       { token, novaSenha: newPassword },
       {
         headers: { skipAuthRedirect: "true" },
-      }
+      },
     );
   }
 

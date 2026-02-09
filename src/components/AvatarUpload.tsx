@@ -106,8 +106,21 @@ export function AvatarUpload({
   const isLoading = isProcessing || isUploading || isDeleting;
 
   return (
-    <div className="w-full max-w-sm mx-auto">
+    <div className="w-full max-w-sm mx-auto relative">
       <div className="relative flex flex-col items-center p-6 rounded-2xl border bg-card/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-md border-dashed border-muted-foreground/20">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-2xl animate-in fade-in duration-300">
+            <Loader2 className="h-10 w-10 animate-spin text-primary mb-2" />
+            <p className="text-xs font-semibold text-primary animate-pulse">
+              {isUploading
+                ? "Enviando..."
+                : isDeleting
+                ? "Removendo..."
+                : "Processando..."}
+            </p>
+          </div>
+        )}
+
         <div className="relative group mb-6">
           <div
             className={cn(
@@ -124,7 +137,12 @@ export function AvatarUpload({
             />
 
             <button
-              onClick={() => fileInputRef.current?.click()}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
               disabled={isLoading}
               className="absolute bottom-1 right-1 p-2 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
               title="Alterar foto"
@@ -132,12 +150,6 @@ export function AvatarUpload({
               <Camera className="h-4 w-4" />
             </button>
           </div>
-
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[1px] rounded-full">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          )}
         </div>
 
         <div className="text-center space-y-1 mb-6">
@@ -145,20 +157,21 @@ export function AvatarUpload({
             Foto de Perfil
           </h4>
           <p className="text-xs text-muted-foreground">
-            {isProcessing
-              ? "Otimizando imagem..."
-              : isUploading
-              ? "Enviando para o servidor..."
-              : "JPG, PNG ou GIF até 1MB"}
+            JPG, PNG ou GIF até 1MB
           </p>
         </div>
 
         <div className="flex items-center gap-3 w-full">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             className="flex-1 h-9 rounded-xl gap-2 font-medium hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
             disabled={isLoading}
           >
             <Upload className="h-3.5 w-3.5" />
@@ -166,10 +179,15 @@ export function AvatarUpload({
           </Button>
 
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="h-9 w-9 rounded-xl p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            onClick={handleDelete}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDelete();
+            }}
             disabled={isLoading}
             title="Remover foto"
           >

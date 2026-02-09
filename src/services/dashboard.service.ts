@@ -208,7 +208,9 @@ class DashboardService {
         .filter((t) => t.status === "PENDENTE" && t.dataVencimento === todayStr)
         .map((t) => ({
           id: t.id,
+          clienteId: t.clienteId,
           clienteNome: t.clienteNome,
+          clienteCodigoCrm: t.clienteCodigoCrm,
           valor: t.valor,
           dataVencimento: t.dataVencimento,
           status: t.status,
@@ -219,7 +221,9 @@ class DashboardService {
         .slice(0, 5)
         .map((t) => ({
           id: t.id,
+          clienteId: t.clienteId,
           clienteNome: t.clienteNome,
+          clienteCodigoCrm: t.clienteCodigoCrm,
           valor: t.valor,
           dataVencimento: t.dataVencimento,
           status: t.status,
@@ -227,7 +231,9 @@ class DashboardService {
 
       const titulosRecentes = titulos.slice(0, 5).map((t) => ({
         id: t.id,
+        clienteId: t.clienteId,
         clienteNome: t.clienteNome,
+        clienteCodigoCrm: t.clienteCodigoCrm,
         valor: t.valor,
         dataVencimento: t.dataVencimento,
         status: t.status,
@@ -238,8 +244,13 @@ class DashboardService {
         .filter((l) => l.status === "ATIVO" && l.dataExpiracao === todayStr)
         .map((l) => ({
           id: l.id,
+          clienteId: l.clienteId,
           clienteNome: l.clienteNome,
+          clienteCodigoCrm: l.clienteCodigoCrm,
+          produtoId: l.produtoId,
           produtoNome: l.produtoNome,
+          planoId: l.planoId,
+          planoNome: l.planoNome,
           dataExpiracao: l.dataExpiracao,
           status: l.status,
         }));
@@ -249,16 +260,26 @@ class DashboardService {
         .slice(0, 5)
         .map((l) => ({
           id: l.id,
+          clienteId: l.clienteId,
           clienteNome: l.clienteNome,
+          clienteCodigoCrm: l.clienteCodigoCrm,
+          produtoId: l.produtoId,
           produtoNome: l.produtoNome,
+          planoId: l.planoId,
+          planoNome: l.planoNome,
           dataExpiracao: l.dataExpiracao,
           status: l.status,
         }));
 
       const licencasRecentes = licencas.slice(0, 5).map((l) => ({
         id: l.id,
+        clienteId: l.clienteId,
         clienteNome: l.clienteNome,
+        clienteCodigoCrm: l.clienteCodigoCrm,
+        produtoId: l.produtoId,
         produtoNome: l.produtoNome,
+        planoId: l.planoId,
+        planoNome: l.planoNome,
         dataExpiracao: l.dataExpiracao,
         status: l.status,
       }));

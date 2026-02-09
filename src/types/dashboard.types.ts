@@ -36,7 +36,9 @@ export interface Activity {
 
 export interface TituloDashboard {
   id: string;
+  clienteId: string;
   clienteNome: string;
+  clienteCodigoCrm: string;
   valor: number;
   dataVencimento: string;
   status: string;
@@ -44,8 +46,13 @@ export interface TituloDashboard {
 
 export interface LicencaDashboard {
   id: string;
+  clienteId: string;
   clienteNome: string;
+  clienteCodigoCrm: string;
+  produtoId: string;
   produtoNome: string;
+  planoId: string;
+  planoNome: string;
   dataExpiracao: string;
   status: string;
 }

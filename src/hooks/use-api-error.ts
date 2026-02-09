@@ -1,40 +1,38 @@
 import { useState, useCallback } from "react";
-import { ApiError } from "@/types";
+import { AppError, ErroDTO } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 export function useApiError() {
-  const [apiError, setApiError] = useState<ApiError | null>(null);
+  const [apiError, setApiError] = useState<AppError | null>(null);
   const { toast } = useToast();
 
   const handleError = useCallback(
     (error: any, defaultMessage: string) => {
       console.error(defaultMessage, error);
-      const backendError = error.response?.data as ApiError;
-      setApiError(backendError);
 
-      const translateMessage = (msg: string) => {
-        const translations: Record<string, string> = {
-          "Validation failed": "Falha na validação dos dados",
-          "Access denied": "Acesso negado",
-          "Internal server error": "Erro interno do servidor",
-          "Resource not found": "Recurso não encontrado",
-          "Invalid credentials": "Credenciais inválidas",
-          "User already exists": "Usuário já cadastrado",
-          "Email already in use": "E-mail já está em uso",
-        };
-        return translations[msg] || msg;
-      };
+      let description = defaultMessage;
+      let status = 0;
 
-      let description = translateMessage(
-        backendError?.message || defaultMessage
-      );
+      if (error instanceof AppError) {
+        setApiError(error);
+        status = error.status;
 
-      // Se houver erros de validação específicos, adiciona-os à descrição
-      if (backendError?.errors && Object.keys(backendError.errors).length > 0) {
-        const validationMessages = Object.entries(backendError.errors)
-          .map(([field, messages]) => `${field}: ${messages.join(", ")}`)
-          .join("\n");
-        description = `${description}\n${validationMessages}`;
+        if (error.errors && error.errors.length > 0) {
+          description = error.errors
+            .map((e) => {
+              if (e.metadata && typeof e.metadata === "string") {
+                return `${e.metadata}: ${e.mensagem}`;
+              }
+              return e.mensagem;
+            })
+            .join("\n");
+        }
+      } else {
+        // Fallback for unknown errors
+        setApiError(null); // Or create a generic AppError
+        if (error?.message) {
+          description = error.message;
+        }
       }
 
       const getTitle = (status: number) => {
@@ -55,12 +53,12 @@ export function useApiError() {
       };
 
       toast({
-        title: getTitle(backendError?.status || 0),
+        title: getTitle(status),
         description: description,
         variant: "destructive",
       });
     },
-    [toast]
+    [toast],
   );
 
   const clearError = useCallback(() => {

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/contexts/UserContext";
 
 interface UserAvatarProps {
   userId: string;
@@ -26,11 +27,15 @@ export function UserAvatar({
   className = "h-9 w-9",
   fallbackClassName = "",
   showEnlarge = true,
-  refreshKey = 0,
+  refreshKey: propRefreshKey = 0,
 }: UserAvatarProps) {
+  const { user: loggedInUser, avatarRefreshKey: globalRefreshKey } = useUser();
   const [avatarData, setAvatarData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Use global refresh key if this is the logged-in user
+  const refreshKey = userId === loggedInUser?.id ? globalRefreshKey : propRefreshKey;
 
   useEffect(() => {
     let isMounted = true;

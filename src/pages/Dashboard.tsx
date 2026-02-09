@@ -13,6 +13,7 @@ import { StatsCard } from "@/components/StatsCard";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProdutoLogo } from "@/components/ProdutoLogo";
+import { ClienteLogo } from "@/components/ClienteLogo";
 import {
   Card,
   CardContent,
@@ -449,13 +450,20 @@ function SectionList({
               key={item.id}
               className="flex items-center justify-between rounded-md bg-muted/30 p-2 border border-border/50 gap-3"
             >
-              {type === "licenca" && (
+              {type === "licenca" ? (
                 <ProdutoLogo
                   produtoId={item.produtoId}
                   produtoNome={item.produtoNome}
                   planoNome={item.planoNome}
                   className="h-8 w-8 shrink-0"
                   showTooltip
+                />
+              ) : (
+                <ClienteLogo
+                  clienteId={item.clienteId}
+                  razaoSocial={item.clienteNome}
+                  className="h-8 w-8 shrink-0"
+                  showEnlarge={false}
                 />
               )}
               <div className="min-w-0 flex-1">

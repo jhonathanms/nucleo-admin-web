@@ -27,10 +27,13 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
+import { useUser } from "@/contexts/UserContext";
+
 const REMEMBER_ME_KEY = "nucleo-admin-remember-email";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { refreshUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -72,6 +75,7 @@ export default function Login() {
 
     try {
       await authService.login({ email, password });
+      await refreshUser();
 
       if (rememberMe) {
         localStorage.setItem(REMEMBER_ME_KEY, email);

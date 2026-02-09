@@ -59,9 +59,7 @@ export function LogoUpload({
       const formData = new FormData();
       formData.append("file", processedFile);
 
-      await api.post(`/produtos/${produtoId}/logo`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await api.post(`/produtos/${produtoId}/logo`, formData);
 
       setLocalRefreshKey((prev) => prev + 1);
       toast({
@@ -109,8 +107,20 @@ export function LogoUpload({
   const isLoading = isProcessing || isUploading || isDeleting;
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <div className="relative flex flex-col items-center p-4 rounded-xl border bg-card/50 border-dashed border-muted-foreground/20">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-xl animate-in fade-in duration-300">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+            <p className="text-[10px] font-semibold text-primary animate-pulse">
+              {isUploading
+                ? "Enviando..."
+                : isDeleting
+                ? "Removendo..."
+                : "Processando..."}
+            </p>
+          </div>
+        )}
         <div className="relative group mb-4">
           <div
             className={cn(
@@ -125,36 +135,46 @@ export function LogoUpload({
               refreshKey={localRefreshKey}
             />
             <button
-              onClick={() => fileInputRef.current?.click()}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
               disabled={isLoading}
               className="absolute -bottom-2 -right-2 p-1.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-110 transition-all disabled:opacity-50"
             >
               <Camera className="h-3.5 w-3.5" />
             </button>
           </div>
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/40 rounded-md">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2 w-full">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             className="flex-1 h-8 text-xs gap-1.5"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
             disabled={isLoading}
           >
             <Upload className="h-3 w-3" />
             Logo
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-            onClick={handleDelete}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDelete();
+            }}
             disabled={isLoading}
           >
             <Trash2 className="h-3.5 w-3.5" />

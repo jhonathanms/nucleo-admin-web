@@ -105,8 +105,20 @@ export function ClienteLogoUpload({
   const isLoading = isProcessing || isUploading || isDeleting;
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <div className="relative flex flex-col items-center p-4 rounded-xl border bg-card/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-md border-dashed border-muted-foreground/20">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-xl animate-in fade-in duration-300">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+            <p className="text-[10px] font-semibold text-primary animate-pulse">
+              {isUploading
+                ? "Enviando..."
+                : isDeleting
+                ? "Removendo..."
+                : "Processando..."}
+            </p>
+          </div>
+        )}
         <div className="relative group mb-4">
           <div
             className={cn(
@@ -123,7 +135,12 @@ export function ClienteLogoUpload({
             />
 
             <button
-              onClick={() => fileInputRef.current?.click()}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
               disabled={isLoading}
               className="absolute bottom-1 right-1 p-1.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
               title="Alterar logo"
@@ -131,12 +148,6 @@ export function ClienteLogoUpload({
               <Camera className="h-3.5 w-3.5" />
             </button>
           </div>
-
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[1px] rounded-lg">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          )}
         </div>
 
         <div className="text-center space-y-1 mb-4">
@@ -144,20 +155,21 @@ export function ClienteLogoUpload({
             Logo da Empresa
           </h4>
           <p className="text-[10px] text-muted-foreground">
-            {isProcessing
-              ? "Otimizando..."
-              : isUploading
-              ? "Enviando..."
-              : "JPG ou PNG até 1MB"}
+            JPG ou PNG até 1MB
           </p>
         </div>
 
         <div className="flex items-center gap-2 w-full">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             className="flex-1 h-8 text-[11px] rounded-lg gap-1.5 font-medium transition-colors"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
             disabled={isLoading}
           >
             <Upload className="h-3 w-3" />
@@ -165,10 +177,15 @@ export function ClienteLogoUpload({
           </Button>
 
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            onClick={handleDelete}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDelete();
+            }}
             disabled={isLoading}
             title="Remover logo"
           >

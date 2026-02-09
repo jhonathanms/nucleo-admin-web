@@ -180,10 +180,7 @@ class ClienteService {
     formData.append("file", file);
     const response = await api.post<{ message: string }>(
       `${this.baseURL}/${clienteId}/logo`,
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-      }
+      formData
     );
     return response.data;
   }
@@ -191,11 +188,14 @@ class ClienteService {
   /**
    * Get client logo
    */
-  async getLogo(clienteId: string): Promise<string> {
-    const response = await api.get<{ base64: string }>(
-      `${this.baseURL}/${clienteId}/logo`
-    );
-    return response.data.base64;
+  async getLogo(clienteId: string): Promise<{
+    nomeArquivo: string;
+    tipoMime: string;
+    tamanho: number;
+    base64: string;
+  }> {
+    const response = await api.get(`${this.baseURL}/${clienteId}/logo`);
+    return response.data;
   }
 
   /**
@@ -209,9 +209,12 @@ class ClienteService {
    * Check if client has logo
    */
   async hasLogo(clienteId: string): Promise<boolean> {
-    const response = await api.get<boolean>(
+    const response = await api.get<boolean | { hasLogo: boolean }>(
       `${this.baseURL}/${clienteId}/logo/exists`
     );
+    if (typeof response.data === "object") {
+      return response.data.hasLogo;
+    }
     return response.data;
   }
 

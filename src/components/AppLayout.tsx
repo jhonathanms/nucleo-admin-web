@@ -26,7 +26,7 @@ export function AppLayout() {
           await sessaoService.validarSessao();
         } catch (error: any) {
           // Only redirect if it's a 401 (Unauthorized)
-          if (error.response?.status === 401) {
+          if (error.status === 401 || error.response?.status === 401) {
             console.error("Session validation failed (Unauthorized):", error);
             navigate("/login", { replace: true });
           } else {
@@ -41,7 +41,7 @@ export function AppLayout() {
 
   // Inactivity Timeout Logic
   useEffect(() => {
-    const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes
+    const INACTIVITY_LIMIT = 60 * 60 * 1000; // 1 hour
     let timeoutId: NodeJS.Timeout;
 
     const handleLogout = async () => {
@@ -124,7 +124,7 @@ export function AppLayout() {
       <main
         className={cn(
           "flex-1 flex flex-col overflow-hidden pt-20 transition-all duration-300 ease-in-out",
-          sidebarCollapsed ? "pl-20" : "pl-80"
+          sidebarCollapsed ? "pl-20" : "pl-80",
         )}
       >
         <div className="flex-1 flex flex-col overflow-hidden p-6 animate-fade-in max-w-[1600px] mx-auto w-full">

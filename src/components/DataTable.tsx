@@ -54,6 +54,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   className?: string;
   itemsPerPage?: number;
+  getRowClassName?: (item: T) => string;
 }
 
 export function DataTable<T extends { id: string | number }>({
@@ -65,6 +66,7 @@ export function DataTable<T extends { id: string | number }>({
   emptyMessage = "Nenhum registro encontrado",
   className,
   itemsPerPage = 10,
+  getRowClassName,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,7 +144,10 @@ export function DataTable<T extends { id: string | number }>({
                 </TableRow>
               ) : (
                 paginatedData.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={item.id}
+                    className={cn("hover:bg-muted/30", getRowClassName?.(item))}
+                  >
                     {columns.map((column) => (
                       <TableCell key={column.key} className={column.className}>
                         {column.cell(item)}

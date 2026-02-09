@@ -150,11 +150,7 @@ class UsuarioService {
   async uploadAvatar(id: string, file: File): Promise<void> {
     const formData = new FormData();
     formData.append("file", file);
-    await api.post(`${this.baseURL}/${id}/avatar`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    await api.post(`${this.baseURL}/${id}/avatar`, formData);
   }
 
   /**

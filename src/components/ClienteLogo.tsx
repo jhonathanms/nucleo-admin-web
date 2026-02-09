@@ -47,9 +47,12 @@ export function ClienteLogo({
 
         const hasLogo = await clienteService.hasLogo(clienteId);
         if (hasLogo && isMounted) {
-          const url = await clienteService.getLogo(clienteId);
+          const data = await clienteService.getLogo(clienteId);
           if (isMounted) {
-            setLogoData(url);
+            const fullBase64 = data.base64.startsWith("data:")
+              ? data.base64
+              : `data:${data.tipoMime};base64,${data.base64}`;
+            setLogoData(fullBase64);
           }
         }
       } catch (error) {

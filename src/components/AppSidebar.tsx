@@ -25,6 +25,7 @@ import { UserAvatar } from "./UserAvatar";
 import clienteService from "@/services/cliente.service";
 import { Cliente } from "@/types/cliente.types";
 import { ClienteLogo } from "./ClienteLogo";
+import { useUser } from "@/contexts/UserContext";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -46,15 +47,11 @@ interface AppSidebarProps {
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, avatarRefreshKey } = useUser();
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [mainCliente, setMainCliente] = useState<Cliente | null>(null);
 
   useEffect(() => {
-    const currentUser = authService.getStoredUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
     loadMainCliente();
   }, []);
 
@@ -181,6 +178,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                     userName={user.nome || "Usuário"}
                     className="h-10 w-10 rounded-xl border border-primary/10"
                     fallbackClassName="text-lg"
+                    refreshKey={avatarRefreshKey}
                   />
                 ) : (
                   <div className="h-10 w-10 rounded-xl border border-primary/10 bg-primary/10 flex items-center justify-center">
